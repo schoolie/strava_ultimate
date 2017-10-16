@@ -101,7 +101,7 @@ event_lookup = [
 ]
 
 
-# In[14]:
+# In[17]:
 
 class Dummy(object):
     pass
@@ -115,9 +115,11 @@ filename = 'activity_2101180747.tcx'
 
 games = []
 
+
 for filename in os.listdir():
     if '.tcx' in filename:
 
+        game_num = 0
     
         doc = minidom.parse(filename)
         doc.normalize()
@@ -158,15 +160,16 @@ for filename in os.listdir():
         events.append([presses, time])
 
 
-        base_game = {'my_point': 0, 'team_point': 0, 'opponent_point': 0}
+        base_game = {'my_point': 0, 'team_point': 0, 'opponent_point': 0, 'game_num': 0}
         game = base_game
         for event in events:
             game['end_time'] = event[1]
 
             event_type = event_lookup[event[0]]
             if event_type == 'game':
-                games.append(game)
-                game = {'my_point': 0, 'team_point': 0, 'opponent_point': 0}
+                games.append(game)                
+                game_num += 1
+                game = {'my_point': 0, 'team_point': 0, 'opponent_point': 0, 'game_num': game_num}
                 added = True
 
             elif event_type == 'my_point':
@@ -184,17 +187,22 @@ for filename in os.listdir():
 games
 
 
-# In[15]:
+# In[18]:
 
 import pandas as pd
 
 
-# In[16]:
+# In[20]:
 
-pd.DataFrame(games)
-
-
-# In[ ]:
+df = pd.DataFrame(games)
 
 
+# In[23]:
+
+df['date'] = df.end_time.apply(lambda x: datetime.date(x.year, x.month, x.day))
+
+
+# In[28]:
+
+df.set_index(['date', 'game_num']).unstack('game_num').reorder_levels([1,0], axis=1).sort_index(axis=1)
 
