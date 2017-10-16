@@ -1,13 +1,14 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[13]:
 
 import stravalib
 import logging
 from xml.dom import minidom
 import dateutil
 import numpy as np
+import os
 
 logger = logging.getLogger()
 logger.setLevel(logging.ERROR)
@@ -89,107 +90,7 @@ def xml_to_time(element):
         return np.nan
 
 
-# In[47]:
-
-class Dummy(object):
-    pass
-
-self = Dummy()
-
-filename = 'activity_2088811850.tcx'   
-       
-    
-    
-doc = minidom.parse(filename)
-doc.normalize()
-self.tcx = doc.documentElement   
-
-points = []
-
-lap_starts = []
-for lap in self.tcx.getElementsByTagName('Lap'):
-    lap_starts.append(lap.attributes.items()[0][1])
-    
-lap_starts = [datetime.datetime.strptime(t, '%Y-%m-%dT%H:%M:%S.000Z') for t in lap_starts]
-lap_starts = lap_starts[1:] # Drop first lap (start of day)
-
-
-#     for track in lap.getElementsByTagName('Track'):
-#         for trackpoint in track.getElementsByTagName('Trackpoint'):     
-
-#             _pos = trackpoint.getElementsByTagName('Position') or None
-#             if _pos:
-#                 _lat = _pos[0].getElementsByTagName('LatitudeDegrees')
-#                 _lon = _pos[0].getElementsByTagName('LongitudeDegrees')
-#             else:
-#                 _lat = None
-#                 _lon = None
-
-#             _time = trackpoint.getElementsByTagName('Time')
-#             _dist = trackpoint.getElementsByTagName('DistanceMeters') or None
-#             _alt = trackpoint.getElementsByTagName('AltitudeMeters') or None
-
-#             _hr_cont = trackpoint.getElementsByTagName('HeartRateBpm') or None
-#             if _hr_cont:
-#                 _hr = _hr_cont[0].getElementsByTagName('Value') or None
-#             else:
-#                 _hr = None
-
-#             _cad = trackpoint.getElementsByTagName('Cadence') or None
-
-
-
-#             _point = {'lat': xml_to_float(_lat),
-#                       'lon': xml_to_float(_lon),
-#                       'time': xml_to_time(_time),
-#                       'alt':  xml_to_float(_alt),
-#                       'hr':   xml_to_float(_hr),
-#                       'cad':  xml_to_float(_cad),
-#                       'dist': xml_to_float(_dist),
-#                      }
-#             points.append(_point)
-
-# self.points = points
-# # self.activity_type = self.tcx.getElementsByTagName('Activity')[0].attributes.getNamedItem('Sport')
-# self.activity_type = 'Biking'
-
-
-# In[49]:
-
-press_delta = datetime.timedelta(0,2)
-
-presses = 1
-
-events = []
-
-for n in range(len(lap_starts) - 1):
-    
-    
-    time = lap_starts[n]
-    
-    dt = lap_starts[n+1] - lap_starts[n]
-    
-    # print(presses, time, dt, dt > press_delta)
-    
-    
-    if dt > press_delta:
-        events.append([presses, time])
-        presses = 1
-        
-    else:        
-        presses += 1
-        
-events.append([presses, time])
-
-events
-
-
-# In[50]:
-
-events
-
-
-# In[55]:
+# In[12]:
 
 event_lookup = [
     '',
@@ -200,36 +101,95 @@ event_lookup = [
 ]
 
 
-# In[56]:
+# In[14]:
+
+class Dummy(object):
+    pass
+
+self = Dummy()
+
+# filename = 'activity_2088811850.tcx'   
+filename = 'activity_2101180747.tcx'   
+       
+    
 
 games = []
 
-base_game = {'my_point': 0, 'team_point': 0, 'opponent_point': 0}
-game = base_game
-for event in events:
-    game['end_time'] = event[1]
+for filename in os.listdir():
+    if '.tcx' in filename:
 
-    event_type = event_lookup[event[0]]
-    if event_type == 'game':
-        games.append(game)
-        game = {'my_point': 0, 'team_point': 0, 'opponent_point': 0}
-        
-    elif event_type == 'my_point':
-        game[event_type] += 1
-        game['team_point'] += 1
-    else:
-        game[event_type] += 1
+    
+        doc = minidom.parse(filename)
+        doc.normalize()
+        self.tcx = doc.documentElement   
 
-games.append(game)
+        points = []
+
+        lap_starts = []
+        for lap in self.tcx.getElementsByTagName('Lap'):
+            lap_starts.append(lap.attributes.items()[0][1])
+
+        lap_starts = [datetime.datetime.strptime(t, '%Y-%m-%dT%H:%M:%S.000Z') for t in lap_starts]
+        lap_starts = lap_starts[1:] # Drop first lap (start of day)
+
+        press_delta = datetime.timedelta(0,2)
+
+        presses = 1
+
+        events = []
+
+        for n in range(len(lap_starts) - 1):
+
+
+            time = lap_starts[n]
+
+            dt = lap_starts[n+1] - lap_starts[n]
+
+            # print(presses, time, dt, dt > press_delta)
+
+
+            if dt > press_delta:
+                events.append([presses, time])
+                presses = 1
+
+            else:        
+                presses += 1
+
+        events.append([presses, time])
+
+
+        base_game = {'my_point': 0, 'team_point': 0, 'opponent_point': 0}
+        game = base_game
+        for event in events:
+            game['end_time'] = event[1]
+
+            event_type = event_lookup[event[0]]
+            if event_type == 'game':
+                games.append(game)
+                game = {'my_point': 0, 'team_point': 0, 'opponent_point': 0}
+                added = True
+
+            elif event_type == 'my_point':
+                game[event_type] += 1
+                game['team_point'] += 1
+                added = False
+
+            else:
+                game[event_type] += 1
+                added = False
+
+        if not added:
+            games.append(game)
+
 games
 
 
-# In[57]:
+# In[15]:
 
 import pandas as pd
 
 
-# In[58]:
+# In[16]:
 
 pd.DataFrame(games)
 
