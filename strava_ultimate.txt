@@ -1,8 +1,4 @@
 
-# coding: utf-8
-
-# In[1]:
-
 import stravalib
 import logging
 from xml.dom import minidom
@@ -13,9 +9,6 @@ import os
 logger = logging.getLogger()
 logger.setLevel(logging.ERROR)
 
-
-# In[2]:
-
 #Global Variables - put your data in the file 'client.secret' and separate the fields with a comma!
 client = stravalib.client.Client()
 access_token = 'e3ccedc91fceef32077fbb31fc44676446d14bdd'
@@ -23,40 +16,24 @@ access_token = 'e3ccedc91fceef32077fbb31fc44676446d14bdd'
 client.access_token = access_token
 athlete = client.get_athlete()
 
-
-# In[3]:
-
 auth_url= client.authorization_url(client_id=19435, redirect_uri='http://localhost:8282/authorized', approval_prompt=u'auto', scope='view_private,write', state=None)
 from IPython.core.display import display, HTML
 display(HTML("""<a href="{}">{}</a>""".format(auth_url,auth_url)))
 
-
-# In[4]:
-
 code = '6d057263b427852b0489af26e921f8fd25a78852'
 access_token = client.exchange_code_for_token(client_id=19435, client_secret='45b776d5beceeb34c290b8a56bf9829d6d4ea5d7', code=code)
 
-
-# In[5]:
 
 client = stravalib.client.Client(access_token=access_token)
 athlete = client.get_athlete()
 print('athlete name %s, athlete id %s.' %(athlete.firstname, athlete.id))
 
 
-# In[6]:
-
 import datetime
 lap_start_date = datetime.datetime(2017, 9, 28)
 lap_start_date
 
-
-# In[7]:
-
 lap_start_date - datetime.timedelta(days=1)
-
-
-# In[8]:
 
 runs = []
 for activity in client.get_activities(after=lap_start_date):
@@ -77,26 +54,14 @@ for activity in client.get_activities(after=lap_start_date):
         print(new_activity.start_date, team_score, opponent_score, color)
         runs.append(activity)
 
-
-# In[9]:
-
 activity.description
-
-
-# In[10]:
 
 for run in runs:
     print(run)
     for lap in runs[1].laps:
         print(lap.elapsed_time)
 
-
-# In[11]:
-
 lap
-
-
-# In[12]:
 
 
 def xml_to_float(element):
@@ -112,20 +77,13 @@ def xml_to_time(element):
     else:
         return np.nan
 
-
-# In[13]:
-
 event_lookup = [
     '',
     'team_point',
     'opponent_point',
     'my_point',
     'game',
-    'game'
 ]
-
-
-# In[23]:
 
 class Dummy(object):
     pass
@@ -214,33 +172,16 @@ for filename in os.listdir():
 
 
 
-# In[24]:
-
 import pandas as pd
-
-
-# In[25]:
 
 df = pd.DataFrame(games)
 
-
-# In[26]:
-
 df['date'] = df.end_time.apply(lambda x: datetime.date(x.year, x.month, x.day))
-
-
-# In[27]:
 
 df = df.set_index(['date', 'game_num'])
 df
 
-
-# In[19]:
-
 pdf = df
-
-
-# In[20]:
 
 pdf['my_team'] = None
 pdf['white_wins'] = None
@@ -248,13 +189,7 @@ pdf['color_wins'] = None
 pdf['white_point'] = None
 pdf['color_point'] = None
 
-
-# In[21]:
-
 pdf.head()
-
-
-# In[22]:
 
 for date, row in pdf.unstack().iterrows():
     print(date)
@@ -296,48 +231,39 @@ for date, row in pdf.unstack().iterrows():
             
             
 
-
-# In[ ]:
-
 pdf.loc[date, 'team_point']    
-
-
-# In[ ]:
 
 pdf
 
-
-# In[ ]:
-
-
-
-
-# In[ ]:
-
-
-
-
-# In[ ]:
-
-
-
-
-# In[ ]:
-
-
-
-
-# In[ ]:
+runs = []
+for activity in client.get_activities(after=lap_start_date):
+    if 'ltimate' in activity.name and activity.type == 'Run':
+        #print(activity.id, activity.name, activity.type, activity.start_date, activity.description)
+        new_activity = client.get_activity(activity.id)
+        #print(new_activity.description)
+        try:
+            scores, color = new_activity.description.split(' ')
+            try:
+                team_score, opponent_score = scores.split('-')
+            except ValueError:
+                team_score, opponent_score, color = None, None, None     
+        except ValueError:
+            scores = None
+            team_score, opponent_score, color = None, None, None           
+        
+        print(new_activity.start_date, team_score, opponent_score, color)
+        runs.append(activity)
 
 
 
 
-# In[ ]:
 
 
 
 
-# In[ ]:
+
+
+
 
 
 
