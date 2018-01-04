@@ -4,6 +4,8 @@ import logging
 from xml.dom import minidom
 import dateutil
 import numpy as np
+import pandas as pd
+
 import os
 
 from datetime import datetime, timedelta, date
@@ -33,23 +35,32 @@ client = stravalib.client.Client(access_token=access_token)
 athlete = client.get_athlete()
 print('athlete name %s, athlete id %s.' %(athlete.firstname, athlete.id))
 
-### Setting up google sheets client
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+### Setting up google sheets client -- old library
+# import gspread
+# from oauth2client.service_account import ServiceAccountCredentials
 
 
-# use creds to create a client to interact with the Google Drive API
-scope = ['https://spreadsheets.google.com/feeds']
-creds = ServiceAccountCredentials.from_json_keyfile_name('client_secret.json', scope)
-gspread_client = gspread.authorize(creds)
+# # use creds to create a client to interact with the Google Drive API
+# scope = ['https://spreadsheets.google.com/feeds']
+# creds = ServiceAccountCredentials.from_json_keyfile_name('client_secret.json', scope)
+# gspread_client = gspread.authorize(creds)
  
 
 
-## Get last entry from Data Spreadsheet
-sheet = gspread_client.open("Milburn Ultimate Scores").sheet1
+## Set up google sheets client, open worksheet
+import pygsheets
 
-dates_recorded = [datetime.strptime(d, '%Y-%m-%d') for d in sheet.col_values(1) if d != '' and d != 'Date']
+gc = pygsheets.authorize(outh_file='client_secret.json', no_cache=True)
+
+# Open spreadsheet and then workseet
+sh = gc.open('Milburn Ultimate Scores')
+wks = sh.sheet1
+
+## Get last entry from Data Spreadsheet
+
+dates_recorded = [datetime.strptime(d, '%Y-%m-%d') for d in wks.get_col(1) if d != '' and d != 'Date']
 lap_start_date = max(dates_recorded) + timedelta(days=1)
+dates_recorded, lap_start_date
 
 runs = []
 for activity in client.get_activities(after=lap_start_date):
@@ -68,7 +79,12 @@ def get_strava_description(activity):
         scores = None
         team_score, opponent_score, color = None, None, None           
 
-    return team_score, opponent_score, color.lower()
+    try:
+        color = color.lower()
+    except AttributeError:
+        color = None
+        
+    return team_score, opponent_score, color
 
 def extract_events(run):
     lap_nums = []
@@ -134,6 +150,14 @@ def process_events(events):
     if not added:
         games.append(game)
     
+    
+    ## Assign game winners
+    for game in games:
+        if game['team_point'] > game['opponent_point']:
+            game['win'] = True
+        else:
+            game['win'] = False
+            
     return games
 
 games = []
@@ -148,60 +172,66 @@ for run in runs:
     games = games + current_games
     
 
-import pandas as pd
-
-df = pd.DataFrame(games)
+df = pd.DataFrame(games).dropna()
 
 df['date'] = df.end_time.apply(lambda x: date(x.year, x.month, x.day))
 
-df = df.set_index(['date', 'game_num'])
+df = df.set_index(['date', 'game_num'], drop=False)
 df
 
 pdf = df
 
-pdf['my_team'] = None
 pdf['white_wins'] = None
 pdf['color_wins'] = None
 pdf['white_point'] = None
 pdf['color_point'] = None
+pdf['game_winner'] = None
 
-pdf.head()
-
-pdf.unstack()
-
-for date, row in pdf.unstack().iterrows():    
+for (date, game_num), row in pdf.iterrows():      
     
+    if row.my_color == 'white':
+        if row.win:
+            pdf.loc[(date, game_num), 'game_winner'] = 'White'
+        else:
+            pdf.loc[(date, game_num), 'game_winner'] = 'Color'
+        pdf.loc[(date, game_num), 'white_wins'] = team_score                
+        pdf.loc[(date, game_num), 'color_wins'] = opponent_score   
+        pdf.loc[(date, game_num), 'white_point'] = pdf.loc[(date, game_num), 'team_point']                
+        pdf.loc[(date, game_num), 'color_point'] = pdf.loc[(date, game_num), 'opponent_point']
 
-    if 'white' in row.my_color:
-        pdf.loc[date, 'my_team'] = 'white'
-        pdf.loc[date, 'white_wins'] = team_score                
-        pdf.loc[date, 'color_wins'] = opponent_score   
-        pdf.loc[date, 'white_point'] = pdf.loc[date, 'team_point']                
-        pdf.loc[date, 'color_point'] = pdf.loc[date, 'opponent_point']                
+    else:
+        if not row.win:
+            pdf.loc[(date, game_num), 'game_winner'] = 'White'
+        else:
+            pdf.loc[(date, game_num), 'game_winner'] = 'Color'
+        pdf.loc[(date, game_num), 'color_wins'] = team_score                
+        pdf.loc[(date, game_num), 'white_wins'] = opponent_score   
+        pdf.loc[(date, game_num), 'color_point'] = pdf.loc[(date, game_num), 'team_point']                
+        pdf.loc[(date, game_num), 'white_point'] = pdf.loc[(date, game_num), 'opponent_point']
 
-    else:                
-        pdf.loc[date, 'my_team'] = 'color'
-        pdf.loc[date, 'color_wins'] = team_score                
-        pdf.loc[date, 'white_wins'] = opponent_score   
-        pdf.loc[date, 'color_point'] = pdf.loc[date, 'team_point']                
-        pdf.loc[date, 'white_point'] = pdf.loc[date, 'opponent_point']       
-
-            
-
-pdf.loc[date, 'team_point']    
 
 pdf
 
-pdf[['white_wins', 'color_wins', 'game_num']]
+def merge_two_dicts(x, y):
+    """Given two dicts, merge them into a new dict as a shallow copy."""
+    z = x.copy()
+    z.update(y)
+    return z
 
+scores = []
+for (date, game_num), game in pdf.iterrows():
+    base_dict = dict(date=date, game_num=game_num, white_wins=game.white_wins, color_wins=game.color_wins, game_winner=game.game_winner)    
+    scores.append(merge_two_dicts(base_dict, dict(team='white', team_score=game.white_point, my_score=game.my_point if game.my_color == 'white' else None)))
+    scores.append(merge_two_dicts(base_dict, dict(team='color', team_score=game.color_point, my_score=game.my_point if game.my_color == 'colors' else None)))
 
+score_df = pd.DataFrame(scores).set_index(['date', 'game_num', 'team'], drop=False)
 
+out_df = score_df[['date', 'white_wins', 'color_wins', 'game_num', 'game_winner', 'team', 'team_score', 'my_score']].sort_index(ascending=False, level=0).fillna(value='')
+out_df['date'] = out_df['date'].apply(lambda x: x.strftime('%Y-%m-%d'))
 
+data = out_df.as_matrix().tolist()
+wks.insert_rows(2, values=data, number=len(data))
 
-
-
-
-
-
+out_df
 
 

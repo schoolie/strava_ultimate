@@ -45,28 +45,40 @@ print('athlete name %s, athlete id %s.' %(athlete.firstname, athlete.id))
 
 # In[3]:
 
-### Setting up google sheets client
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+### Setting up google sheets client -- old library
+# import gspread
+# from oauth2client.service_account import ServiceAccountCredentials
 
 
-# use creds to create a client to interact with the Google Drive API
-scope = ['https://spreadsheets.google.com/feeds']
-creds = ServiceAccountCredentials.from_json_keyfile_name('client_secret.json', scope)
-gspread_client = gspread.authorize(creds)
+# # use creds to create a client to interact with the Google Drive API
+# scope = ['https://spreadsheets.google.com/feeds']
+# creds = ServiceAccountCredentials.from_json_keyfile_name('client_secret.json', scope)
+# gspread_client = gspread.authorize(creds)
  
 
 
 # In[4]:
 
+## Set up google sheets client, open worksheet
+import pygsheets
+
+gc = pygsheets.authorize(outh_file='client_secret.json', no_cache=True)
+
+# Open spreadsheet and then workseet
+sh = gc.open('Milburn Ultimate Scores')
+wks = sh.sheet1
+
+
+# In[9]:
+
 ## Get last entry from Data Spreadsheet
-sheet = gspread_client.open("Milburn Ultimate Scores").sheet1
 
-dates_recorded = [datetime.strptime(d, '%Y-%m-%d') for d in sheet.col_values(1) if d != '' and d != 'Date']
+dates_recorded = [datetime.strptime(d, '%Y-%m-%d') for d in wks.get_col(1) if d != '' and d != 'Date']
 lap_start_date = max(dates_recorded) + timedelta(days=1)
+dates_recorded, lap_start_date
 
 
-# In[5]:
+# In[10]:
 
 runs = []
 for activity in client.get_activities(after=lap_start_date):
@@ -74,7 +86,7 @@ for activity in client.get_activities(after=lap_start_date):
         runs.append(activity)
 
 
-# In[6]:
+# In[15]:
 
 def get_strava_description(activity):
     new_activity = client.get_activity(activity.id)
@@ -88,10 +100,15 @@ def get_strava_description(activity):
         scores = None
         team_score, opponent_score, color = None, None, None           
 
-    return team_score, opponent_score, color.lower()
+    try:
+        color = color.lower()
+    except AttributeError:
+        color = None
+        
+    return team_score, opponent_score, color
 
 
-# In[7]:
+# In[16]:
 
 def extract_events(run):
     lap_nums = []
@@ -168,7 +185,7 @@ def process_events(events):
     return games
 
 
-# In[8]:
+# In[ ]:
 
 games = []
 for run in runs:
@@ -183,7 +200,7 @@ for run in runs:
     
 
 
-# In[9]:
+# In[ ]:
 
 df = pd.DataFrame(games)
 df['date'] = df.end_time.apply(lambda x: date(x.year, x.month, x.day))
@@ -206,7 +223,7 @@ pdf['color_point'] = None
 pdf['game_winner'] = None
 
 
-# In[18]:
+# In[12]:
 
 for (date, game_num), row in pdf.iterrows():      
     
@@ -231,34 +248,54 @@ for (date, game_num), row in pdf.iterrows():
         pdf.loc[(date, game_num), 'white_point'] = pdf.loc[(date, game_num), 'opponent_point']
 
 
-# In[19]:
+# In[13]:
 
 pdf
 
 
-# In[21]:
+# In[40]:
 
-pdf[['white_wins', 'color_wins', 'game_num', 'game_winner']].as_matrix()
-
-
-# In[ ]:
+out_df = pdf[['white_wins', 'color_wins', 'game_num', 'game_winner']].copy()
 
 
+# In[50]:
 
-
-# In[ ]:
-
-
-
-
-# In[ ]:
-
-
+def merge_two_dicts(x, y):
+    """Given two dicts, merge them into a new dict as a shallow copy."""
+    z = x.copy()
+    z.update(y)
+    return z
 
 
 # In[ ]:
 
 
+
+
+# In[57]:
+
+scores = []
+for (date, game_num), game in pdf.iterrows():
+    base_dict = dict(date=date, game_num=game_num, white_wins=game.white_wins, color_wins=game.color_wins, game_winner=game.game_winner)    
+    scores.append(merge_two_dicts(base_dict, dict(team='white', team_score=game.white_point, my_score=game.my_point if game.my_color == 'white' else None)))
+    scores.append(merge_two_dicts(base_dict, dict(team='color', team_score=game.color_point, my_score=game.my_point if game.my_color == 'colors' else None)))
+
+score_df = pd.DataFrame(scores).set_index(['date', 'game_num', 'team'], drop=False)
+
+
+# In[63]:
+
+out_matrix = score_df[['date', 'white_wins', 'color_wins', 'game_num', 'game_winner', 'team_score', 'my_score']].sort_index(ascending=False, level=0).as_matrix()
+
+
+# In[65]:
+
+out_matrix.shape
+
+
+# In[69]:
+
+sheet.insert_row(out_matrix[0,:], 3)
 
 
 # In[ ]:
