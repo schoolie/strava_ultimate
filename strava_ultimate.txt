@@ -31,21 +31,9 @@ display(HTML("""<a href="{}">{}</a>""".format(auth_url,auth_url)))
 code = '6d057263b427852b0489af26e921f8fd25a78852'
 access_token = client.exchange_code_for_token(client_id=19435, client_secret='45b776d5beceeb34c290b8a56bf9829d6d4ea5d7', code=code)
 
-client = stravalib.client.Client(access_token=access_token)
-athlete = client.get_athlete()
+strava_client = stravalib.client.Client(access_token=access_token)
+athlete = strava_client.get_athlete()
 print('athlete name %s, athlete id %s.' %(athlete.firstname, athlete.id))
-
-### Setting up google sheets client -- old library
-# import gspread
-# from oauth2client.service_account import ServiceAccountCredentials
-
-
-# # use creds to create a client to interact with the Google Drive API
-# scope = ['https://spreadsheets.google.com/feeds']
-# creds = ServiceAccountCredentials.from_json_keyfile_name('client_secret.json', scope)
-# gspread_client = gspread.authorize(creds)
- 
-
 
 ## Set up google sheets client, open worksheet
 import pygsheets
@@ -60,15 +48,16 @@ wks = sh.sheet1
 
 dates_recorded = [datetime.strptime(d, '%Y-%m-%d') for d in wks.get_col(1) if d != '' and d != 'Date']
 lap_start_date = max(dates_recorded) + timedelta(days=1)
-dates_recorded, lap_start_date
+# lap_start_date = dates_recorded[20]
+lap_start_date
 
 runs = []
-for activity in client.get_activities(after=lap_start_date):
+for activity in strava_client.get_activities(after=lap_start_date):
     if 'ltimate' in activity.name and activity.type == 'Run':
         runs.append(activity)
 
-def get_strava_description(activity):
-    new_activity = client.get_activity(activity.id)
+def get_strava_description(activity, p=False):
+    new_activity = strava_client.get_activity(activity.id)
     try:
         scores, color = new_activity.description.split(' ')
         try:
@@ -83,6 +72,11 @@ def get_strava_description(activity):
         color = color.lower()
     except AttributeError:
         color = None
+        
+    if p:
+        print(new_activity.start_date)
+        print(new_activity.description)
+        print(team_score, opponent_score, color)
         
     return team_score, opponent_score, color
 
@@ -162,12 +156,16 @@ def process_events(events):
 
 games = []
 for run in runs:
-    team_score, opponent_score, color = get_strava_description(run)
-    print(run.start_date_local, get_strava_description(run))
+    team_wins, opponent_wins, color = get_strava_description(run, p=True)
     events = extract_events(run)
+    for e in events:
+        print(e)
     current_games = process_events(events)
     for g in current_games:
         g['my_color'] = color
+        g['team_wins'] = team_wins
+        g['opponent_wins'] = opponent_wins
+        
 
     games = games + current_games
     
@@ -194,8 +192,8 @@ for (date, game_num), row in pdf.iterrows():
             pdf.loc[(date, game_num), 'game_winner'] = 'White'
         else:
             pdf.loc[(date, game_num), 'game_winner'] = 'Color'
-        pdf.loc[(date, game_num), 'white_wins'] = team_score                
-        pdf.loc[(date, game_num), 'color_wins'] = opponent_score   
+        pdf.loc[(date, game_num), 'white_wins'] = pdf.loc[(date, game_num), 'team_wins']            
+        pdf.loc[(date, game_num), 'color_wins'] = pdf.loc[(date, game_num), 'opponent_wins']            
         pdf.loc[(date, game_num), 'white_point'] = pdf.loc[(date, game_num), 'team_point']                
         pdf.loc[(date, game_num), 'color_point'] = pdf.loc[(date, game_num), 'opponent_point']
 
@@ -204,8 +202,8 @@ for (date, game_num), row in pdf.iterrows():
             pdf.loc[(date, game_num), 'game_winner'] = 'White'
         else:
             pdf.loc[(date, game_num), 'game_winner'] = 'Color'
-        pdf.loc[(date, game_num), 'color_wins'] = team_score                
-        pdf.loc[(date, game_num), 'white_wins'] = opponent_score   
+        pdf.loc[(date, game_num), 'color_wins'] = pdf.loc[(date, game_num), 'team_wins']            
+        pdf.loc[(date, game_num), 'white_wins'] = pdf.loc[(date, game_num), 'opponent_wins']    
         pdf.loc[(date, game_num), 'color_point'] = pdf.loc[(date, game_num), 'team_point']                
         pdf.loc[(date, game_num), 'white_point'] = pdf.loc[(date, game_num), 'opponent_point']
 
@@ -229,9 +227,9 @@ score_df = pd.DataFrame(scores).set_index(['date', 'game_num', 'team'], drop=Fal
 out_df = score_df[['date', 'white_wins', 'color_wins', 'game_num', 'game_winner', 'team', 'team_score', 'my_score']].sort_index(ascending=False, level=0).fillna(value='')
 out_df['date'] = out_df['date'].apply(lambda x: x.strftime('%Y-%m-%d'))
 
+out_df
+
 data = out_df.as_matrix().tolist()
 wks.insert_rows(2, values=data, number=len(data))
-
-out_df
 
 
