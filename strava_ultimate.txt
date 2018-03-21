@@ -42,19 +42,24 @@ gc = pygsheets.authorize(outh_file='client_secret.json', no_cache=True)
 
 # Open spreadsheet and then workseet
 sh = gc.open('Milburn Ultimate Scores')
-wks = sh.sheet1
 
-## Get last entry from Data Spreadsheet
+## Get last entry from Raw Point Spreadsheet
 
-dates_recorded = [datetime.strptime(d, '%Y-%m-%d') for d in wks.get_col(1) if d != '' and d != 'Date']
+wks = sh.worksheet_by_title('raw_points')
+
+dates_recorded = [datetime.strptime(d, '%Y-%m-%d %H:%M:%S') for d in wks.get_col(2) if d != '' and d != 'Start Time']
 lap_start_date = max(dates_recorded) + timedelta(days=1)
 # lap_start_date = dates_recorded[20]
+
+# lap_start_date = lap_start_date - timedelta(days=5)
+
 lap_start_date
 
 runs = []
 for activity in strava_client.get_activities(after=lap_start_date):
     if 'ltimate' in activity.name and activity.type == 'Run':
-        runs.append(activity)
+        a = strava_client.get_activity(activity.id)
+        runs.append(a)
 
 def get_strava_description(activity, p=False):
     new_activity = strava_client.get_activity(activity.id)
@@ -80,14 +85,20 @@ def get_strava_description(activity, p=False):
         
     return team_score, opponent_score, color
 
+## Functions
 def extract_events(run):
     lap_nums = []
     start_times = []
     elapsed_times = []
     for l in run.laps:
-        lap_nums.append(int(l.name.split(' ')[-1]))
-        start_times.append(l.start_date_local)
-        elapsed_times.append(l.elapsed_time)
+        try:
+            lap_nums.append(int(l['name'].split(' ')[-1]))
+            start_times.append(datetime.strptime(l['start_date_local'], '%Y-%m-%dT%H:%M:%SZ'))
+            elapsed_times.append(timedelta(seconds=l['elapsed_time']))
+        except TypeError:
+            lap_nums.append(int(l.name.split(' ')[-1]))
+            start_times.append(l.start_date_local)
+            elapsed_times.append(l.elapsed_time)
 
     lap_nums = np.array(lap_nums)
     
@@ -104,6 +115,7 @@ def process_events(events):
         'team_point',
         'opponent_point',
         'my_point',
+        'game',
         'game',
         'game'
     ]
@@ -154,13 +166,65 @@ def process_events(events):
             
     return games
 
+## Compile raw points for export
 games = []
-for run in runs:
+all_data = []
+for run in reversed(runs):
     team_wins, opponent_wins, color = get_strava_description(run, p=True)
+    
     events = extract_events(run)
+
+    point_df = pd.DataFrame(events, columns=['count', 'start_time', 'elapsed_time'])
+    point_df['start_time'] = point_df['start_time'].apply(lambda x: x.strftime('%Y-%m-%d %H:%M:%S'))
+    point_df['elapsed_time'] = point_df['elapsed_time'].apply(lambda x: x.seconds)
+    
+    data = point_df.sort_index(ascending=False).as_matrix().tolist()
+    all_data = all_data + data
+    
+    
+    
+
+## Write raw points to gsheets
+wks = sh.worksheet_by_title('raw_points')
+wks.insert_rows(2, values=all_data, number=len(all_data))
+
+## Get last entry from Data Spreadsheet
+
+wks = sh.worksheet_by_title('game_summaries')
+
+dates_recorded = [datetime.strptime(d, '%Y-%m-%d') for d in wks.get_col(1) if d != '' and d != 'Date']
+lap_start_date = max(dates_recorded) + timedelta(days=1)
+# lap_start_date = dates_recorded[20]
+lap_start_date
+# from datetime import timedelta
+# lap_start_date = lap_start_date - timedelta(days=2)
+
+wks = sh.worksheet_by_title('raw_points')
+col_names = wks.get_all_values()[1][0:3]
+
+val_lists = wks.get_all_values()[2:]
+val_lists = [v[0:3] for v in val_lists]
+processed_raw_points = pd.DataFrame(val_lists, columns=col_names)
+
+# Process
+processed_raw_points['Type'] = processed_raw_points['Type'].apply(lambda x: int(x))
+
+processed_raw_points['Start Time'] = processed_raw_points['Start Time'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
+processed_raw_points['Day'] = processed_raw_points['Start Time'].apply(lambda x: datetime(year=x.year, month=x.month, day=x.day))
+processed_raw_points['Elapsed Time (Sec)'] = processed_raw_points['Elapsed Time (Sec)'].apply(lambda x: timedelta(seconds=int(x)))
+
+
+processed_raw_points = processed_raw_points[processed_raw_points['Start Time'] > lap_start_date]
+processed_raw_points
+
+for day, pdf in processed_raw_points.groupby('Day', sort=False):
+    print(day)
+    events = pdf[['Type', 'Start Time', 'Elapsed Time (Sec)']].as_matrix().tolist()
+    
     for e in events:
         print(e)
     current_games = process_events(events)
+    
     for g in current_games:
         g['my_color'] = color
         g['team_wins'] = team_wins
@@ -168,7 +232,7 @@ for run in runs:
         
 
     games = games + current_games
-    
+
 
 df = pd.DataFrame(games).dropna()
 
@@ -230,6 +294,9 @@ out_df['date'] = out_df['date'].apply(lambda x: x.strftime('%Y-%m-%d'))
 out_df
 
 data = out_df.as_matrix().tolist()
+wks = sh.worksheet_by_title('game_summaries')
 wks.insert_rows(2, values=data, number=len(data))
+
+
 
 
