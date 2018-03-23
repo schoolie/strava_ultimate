@@ -71,11 +71,7 @@ lap_start_date
 
 # In[5]:
 
-runs = []
-for activity in strava_client.get_activities(after=lap_start_date):
-    if 'ltimate' in activity.name and activity.type == 'Run':
-        a = strava_client.get_activity(activity.id)
-        runs.append(a)
+
 
 
 # In[6]:
@@ -192,11 +188,9 @@ def process_events(events):
 # In[8]:
 
 ## Compile raw points for export
-games = []
 all_data = []
 for run in reversed(runs):
-    team_wins, opponent_wins, color = get_strava_description(run, p=True)
-    
+   
     events = extract_events(run)
 
     point_df = pd.DataFrame(events, columns=['count', 'start_time', 'elapsed_time'])
@@ -210,14 +204,14 @@ for run in reversed(runs):
     
 
 
-# In[9]:
+# In[52]:
 
 ## Write raw points to gsheets
 wks = sh.worksheet_by_title('raw_points')
 wks.insert_rows(2, values=all_data, number=len(all_data))
 
 
-# In[10]:
+# In[9]:
 
 ## Get last entry from Data Spreadsheet
 
@@ -231,7 +225,7 @@ lap_start_date
 # lap_start_date = lap_start_date - timedelta(days=2)
 
 
-# In[11]:
+# In[29]:
 
 wks = sh.worksheet_by_title('raw_points')
 col_names = wks.get_all_values()[1][0:3]
@@ -248,14 +242,26 @@ processed_raw_points['Day'] = processed_raw_points['Start Time'].apply(lambda x:
 processed_raw_points['Elapsed Time (Sec)'] = processed_raw_points['Elapsed Time (Sec)'].apply(lambda x: timedelta(seconds=int(x)))
 
 
-processed_raw_points = processed_raw_points[processed_raw_points['Start Time'] > lap_start_date]
+processed_raw_points = processed_raw_points[processed_raw_points['Start Time'] > lap_start_date].sort_values('Start Time', ascending=True).reset_index()
 processed_raw_points
 
 
-# In[12]:
+# In[30]:
 
+games = []
+
+runs = []
+for activity in strava_client.get_activities(after=lap_start_date):
+    if 'ltimate' in activity.name and activity.type == 'Run':
+        a = strava_client.get_activity(activity.id)
+        runs.append(a)
+        
 for day, pdf in processed_raw_points.groupby('Day', sort=False):
     print(day)
+
+    
+    team_wins, opponent_wins, color = get_strava_description(runs[0], p=True)
+
     events = pdf[['Type', 'Start Time', 'Elapsed Time (Sec)']].as_matrix().tolist()
     
     for e in events:
@@ -271,25 +277,26 @@ for day, pdf in processed_raw_points.groupby('Day', sort=False):
     games = games + current_games
 
 
-# In[13]:
+# In[33]:
 
 df = pd.DataFrame(games).dropna()
+df
 
 
-# In[14]:
+# In[36]:
 
-df['date'] = df.end_time.apply(lambda x: date(x.year, x.month, x.day))
+df['date'] = df.end_time.apply(lambda x: datetime(x.year, x.month, x.day))
 
 df = df.set_index(['date', 'game_num'], drop=False)
 df
 
 
-# In[15]:
+# In[37]:
 
 pdf = df
 
 
-# In[16]:
+# In[38]:
 
 pdf['white_wins'] = None
 pdf['color_wins'] = None
@@ -298,7 +305,7 @@ pdf['color_point'] = None
 pdf['game_winner'] = None
 
 
-# In[17]:
+# In[39]:
 
 for (date, game_num), row in pdf.iterrows():      
     
@@ -323,12 +330,12 @@ for (date, game_num), row in pdf.iterrows():
         pdf.loc[(date, game_num), 'white_point'] = pdf.loc[(date, game_num), 'opponent_point']
 
 
-# In[18]:
+# In[40]:
 
 pdf
 
 
-# In[19]:
+# In[41]:
 
 def merge_two_dicts(x, y):
     """Given two dicts, merge them into a new dict as a shallow copy."""
@@ -337,7 +344,7 @@ def merge_two_dicts(x, y):
     return z
 
 
-# In[28]:
+# In[42]:
 
 scores = []
 for (date, game_num), game in pdf.iterrows():
@@ -345,26 +352,26 @@ for (date, game_num), game in pdf.iterrows():
     scores.append(merge_two_dicts(base_dict, dict(team='white', team_score=game.white_point, my_score=game.my_point if game.my_color == 'white' else None)))
     scores.append(merge_two_dicts(base_dict, dict(team='color', team_score=game.color_point, my_score=game.my_point if game.my_color == 'colors' else None)))
 
-score_df = pd.DataFrame(scores).set_index(['date', 'game_num', 'team'], drop=False)
+score_df = pd.DataFrame(scores).set_index(['date', 'game_num', 'team'], drop=False).sort_values('end_time')
 
 
-# In[29]:
+# In[43]:
 
 score_df
 
 
-# In[38]:
+# In[44]:
 
 out_df = score_df[['date', 'white_wins', 'color_wins', 'game_num', 'game_winner', 'team', 'team_score', 'my_score']].fillna(value='')
 out_df['date'] = out_df['date'].apply(lambda x: x.strftime('%Y-%m-%d'))
 
 
-# In[39]:
+# In[45]:
 
 out_df
 
 
-# In[40]:
+# In[28]:
 
 data = out_df.as_matrix().tolist()
 wks = sh.worksheet_by_title('game_summaries')
