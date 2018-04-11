@@ -4,6 +4,7 @@
 # In[1]:
 
 
+import fire
 import json
 import stravalib
 import pygsheets
@@ -26,56 +27,7 @@ logger.setLevel(logging.ERROR)
 # In[2]:
 
 
-#### Setting up strava API client
 
-## Read Strava secret file
-with open('strava_secrets.json') as json_data:
-    strava_secrets = json.load(json_data)
-
-client = stravalib.client.Client()
-access_token = strava_secrets['access_token']
-
-client.access_token = access_token
-athlete = client.get_athlete()
-
-## Enable accessing private activities
-
-
-code = strava_secrets['auth_code']
-access_token = client.exchange_code_for_token(client_id=19435, client_secret='45b776d5beceeb34c290b8a56bf9829d6d4ea5d7', code=code)
-
-strava_client = stravalib.client.Client(access_token=access_token)
-athlete = strava_client.get_athlete()
-print('athlete name %s, athlete id %s.' %(athlete.firstname, athlete.id))
-
-
-# In[3]:
-
-
-
-## Set up google sheets client, open worksheet
-
-# - Opens browser window, produces sheets.googleapis.com-python.json ... need to figure out how to productionize?
-gc = pygsheets.authorize(outh_file='gsheet_secret.json', no_cache=True)
-
-# Open spreadsheet and then workseet
-sh = gc.open('Milburn Ultimate Scores')
-
-
-# In[4]:
-
-
-## Get last entry from Raw Point Spreadsheet
-
-wks = sh.worksheet_by_title('raw_points')
-
-dates_recorded = [datetime.strptime(d, '%Y-%m-%d %H:%M:%S') for d in wks.get_col(2) if d != '' and d != 'Start Time']
-start_date = max(dates_recorded) + timedelta(days=1)
-# lap_start_date = dates_recorded[20]
-
-# start_date = start_date - timedelta(days=5)
-
-start_date
 
 
 
@@ -185,15 +137,49 @@ def process_events(events):
 
     return games
 
+class Handler(object):
+    def __init__(self):
+        #### Setting up strava API client
+        ## Read Strava secret file
+        with open('strava_secrets.json') as json_data:
+            strava_secrets = json.load(json_data)
 
-def get_raw_points(start_date):
+        strava_client = stravalib.client.Client()
+        # access_token = strava_secrets['access_token']
+        #
+        # strava_client.access_token = access_token
+        # athlete = strava_client.get_athlete()
+
+        ## Enable accessing private activities
+
+
+        code = strava_secrets['auth_code']
+        access_token = strava_client.exchange_code_for_token(client_id=19435, client_secret='45b776d5beceeb34c290b8a56bf9829d6d4ea5d7', code=code)
+
+        strava_client = stravalib.client.Client(access_token=access_token)
+        athlete = strava_client.get_athlete()
+        # print('athlete name %s, athlete id %s.' %(athlete.firstname, athlete.id
+
+        ## Set up google sheets client, open worksheet
+
+        # - Opens browser window, produces sheets.googleapis.com-python.json ... need to figure out how to productionize?
+        gc = pygsheets.authorize(outh_file='gsheet_secret.json', no_cache=True)
+
+        # Open spreadsheet and then workseet
+        wkb = gc.open('Milburn Ultimate Scores')
+
+        self.athlete = athlete
+        self.strava_client = strava_client
+        self.wkb = wkb
+
+        def get_raw_points(self, start_date):
     ## Compile raw points for export
     all_data = []
 
     runs = []
-    for activity in strava_client.get_activities(after=start_date):
+    for activity in self.strava_client.get_activities(after=start_date):
         if 'ltimate' in activity.name and activity.type == 'Run':
-            a = strava_client.get_activity(activity.id)
+            a = self.strava_client.get_activity(activity.id)
             runs.append(a)
 
     for run in reversed(runs):
@@ -210,192 +196,229 @@ def get_raw_points(start_date):
     return all_data
 
 
-def write_raw_points(sheet, all_data):
+    def get_last_raw_entry(self, debug_days=0):
+        """
+        Get last entry from Raw Point Spreadsheet
+        """
 
-    ## Write raw points to gsheets`
-    wks = sheet.worksheet_by_title('raw_points')
-    wks.insert_rows(2, values=all_d`ata, number=len(all_data))
+        wks = self.wkb.worksheet_by_title('raw_points')
+
+        dates = wks.get_col(2)
+        dates_recorded = [datetime.strptime(d, '%Y-%m-%d %H:%M:%S') for d in dates if d != '' and d != 'Start Time']
+        start_date = max(dates_recorded) + timedelta(days=1) ## Go to day after last game
+
+        ## back in time for debugging
+        start_date = start_date - timedelta(days=debug_days)
+
+        return start_date
+
+    def write_raw_points(raw_points):
+
+        ## Write raw points to gsheets`
+        wks = self.wkb.worksheet_by_title('raw_points')
+        wks.insert_rows(2, values=raw_points, number=len(raw_points))
 
 
-# In[9]:
+def strava_to_gsheet(debug_days=0):
+    """
+    Gets last entry from raw points worksheet
+    Reads strava data after latest entry (minus debug_days)
+    Parses strava files, writes raw points to top of raw_points worksheet
+    """
 
+
+    # Find date of last entry
+    start_date = get_last_raw_entry(wkb, debug_days=0)
+
+    print('Getting runs after:', start_date)
+
+    # Get runs after start_date from Strava, extract points
+    raw_points = get_raw_points(start_date)
+
+    print('{} Points Found'.format(len(raw_points)))
+
+    # Write to gsheets
+    write_raw_points(wkb, raw_points)
 
 ## Get last entry from Data Spreadsheet
+def raw_points_from_gsheet_to_summary():
+    wks = wkb.worksheet_by_title('game_summaries')
 
-wks = sh.worksheet_by_title('game_summaries')
-
-dates_recorded = [datetime.strptime(d, '%Y-%m-%d') for d in wks.get_col(1) if d != '' and d != 'Date']
-lap_start_date = max(dates_recorded) + timedelta(days=1)
-# lap_start_date = dates_recorded[20]
-lap_start_date
-# from datetime import timedelta
-# lap_start_date = lap_start_date - timedelta(days=2)
-
-
-# In[10]:
+    dates_recorded = [datetime.strptime(d, '%Y-%m-%d') for d in wks.get_col(1) if d != '' and d != 'Date']
+    lap_start_date = max(dates_recorded) + timedelta(days=1)
+    # lap_start_date = dates_recorded[20]
+    lap_start_date
+    # from datetime import timedelta
+    # lap_start_date = lap_start_date - timedelta(days=2)
 
 
-## Read data from raw point spreadsheet, process
-wks = sh.worksheet_by_title('raw_points')
-col_names = wks.get_all_values()[1][0:3]
-
-val_lists = wks.get_all_values()[2:]
-val_lists = [v[0:3] for v in val_lists]
-processed_raw_points = pd.DataFrame(val_lists, columns=col_names)
-
-# Process
-processed_raw_points['Type'] = processed_raw_points['Type'].apply(lambda x: int(x))
-
-processed_raw_points['Start Time'] = processed_raw_points['Start Time'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
-processed_raw_points['Day'] = processed_raw_points['Start Time'].apply(lambda x: datetime(year=x.year, month=x.month, day=x.day))
-processed_raw_points['Elapsed Time (sec)'] = processed_raw_points['Start Time'].diff(-1).shift(1)
+    # In[10]:
 
 
-processed_raw_points = processed_raw_points[processed_raw_points['Start Time'] > lap_start_date].sort_values('Start Time', ascending=True).reset_index()
-processed_raw_points
+    ## Read data from raw point spreadsheet, process
+    wks = wkb.worksheet_by_title('raw_points')
+    col_names = wks.get_all_values()[1][0:3]
+
+    val_lists = wks.get_all_values()[2:]
+    val_lists = [v[0:3] for v in val_lists]
+    processed_raw_points = pd.DataFrame(val_lists, columns=col_names)
+
+    # Process
+    processed_raw_points['Type'] = processed_raw_points['Type'].apply(lambda x: int(x))
+
+    processed_raw_points['Start Time'] = processed_raw_points['Start Time'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
+    processed_raw_points['Day'] = processed_raw_points['Start Time'].apply(lambda x: datetime(year=x.year, month=x.month, day=x.day))
+    processed_raw_points['Elapsed Time (sec)'] = processed_raw_points['Start Time'].diff(-1).shift(1)
 
 
-# In[11]:
+    processed_raw_points = processed_raw_points[processed_raw_points['Start Time'] > lap_start_date].sort_values('Start Time', ascending=True).reset_index()
+    processed_raw_points
 
 
-games = []
-
-runs = []
-for activity in strava_client.get_activities(after=lap_start_date):
-    if 'ltimate' in activity.name and activity.type == 'Run':
-        a = strava_client.get_activity(activity.id)
-        runs.append(a)
-
-for day, pdf in processed_raw_points.groupby('Day', sort=False):
-    print(day)
+    # In[11]:
 
 
-    team_wins, opponent_wins, color = get_strava_description(runs[0], p=True)
+    games = []
 
-    events = pdf[['Type', 'Start Time', 'Elapsed Time (Sec)']].as_matrix().tolist()
+    runs = []
+    for activity in strava_client.get_activities(after=lap_start_date):
+        if 'ltimate' in activity.name and activity.type == 'Run':
+            a = strava_client.get_activity(activity.id)
+            runs.append(a)
 
-    for e in events:
-        print(e)
-    current_games = process_events(events)
-
-    for g in current_games:
-        g['my_color'] = color
-        g['team_wins'] = team_wins
-        g['opponent_wins'] = opponent_wins
+    for day, pdf in processed_raw_points.groupby('Day', sort=False):
+        print(day)
 
 
-    games = games + current_games
+        team_wins, opponent_wins, color = get_strava_description(runs[0], p=True)
+
+        events = pdf[['Type', 'Start Time', 'Elapsed Time (Sec)']].as_matrix().tolist()
+
+        for e in events:
+            print(e)
+        current_games = process_events(events)
+
+        for g in current_games:
+            g['my_color'] = color
+            g['team_wins'] = team_wins
+            g['opponent_wins'] = opponent_wins
 
 
-# In[10]:
+        games = games + current_games
 
 
-df = pd.DataFrame(games).dropna()
-df
+    # In[10]:
 
 
-# In[11]:
+    df = pd.DataFrame(games).dropna()
+    df
 
 
-df['date'] = df.end_time.apply(lambda x: datetime(x.year, x.month, x.day))
-
-df = df.set_index(['date', 'game_num'], drop=False)
-df
+    # In[11]:
 
 
-# In[12]:
+    df['date'] = df.end_time.apply(lambda x: datetime(x.year, x.month, x.day))
+
+    df = df.set_index(['date', 'game_num'], drop=False)
+    df
 
 
-pdf = df
+    # In[12]:
 
 
-# In[13]:
+    pdf = df
 
 
-pdf['white_wins'] = None
-pdf['color_wins'] = None
-pdf['white_point'] = None
-pdf['color_point'] = None
-pdf['game_winner'] = None
+    # In[13]:
 
 
-# In[14]:
+    pdf['white_wins'] = None
+    pdf['color_wins'] = None
+    pdf['white_point'] = None
+    pdf['color_point'] = None
+    pdf['game_winner'] = None
 
 
-for (date, game_num), row in pdf.iterrows():
+    # In[14]:
 
-    if row.my_color == 'white':
-        if row.win:
-            pdf.loc[(date, game_num), 'game_winner'] = 'White'
+
+    for (date, game_num), row in pdf.iterrows():
+
+        if row.my_color == 'white':
+            if row.win:
+                pdf.loc[(date, game_num), 'game_winner'] = 'White'
+            else:
+                pdf.loc[(date, game_num), 'game_winner'] = 'Color'
+            pdf.loc[(date, game_num), 'white_wins'] = pdf.loc[(date, game_num), 'team_wins']
+            pdf.loc[(date, game_num), 'color_wins'] = pdf.loc[(date, game_num), 'opponent_wins']
+            pdf.loc[(date, game_num), 'white_point'] = pdf.loc[(date, game_num), 'team_point']
+            pdf.loc[(date, game_num), 'color_point'] = pdf.loc[(date, game_num), 'opponent_point']
+
         else:
-            pdf.loc[(date, game_num), 'game_winner'] = 'Color'
-        pdf.loc[(date, game_num), 'white_wins'] = pdf.loc[(date, game_num), 'team_wins']
-        pdf.loc[(date, game_num), 'color_wins'] = pdf.loc[(date, game_num), 'opponent_wins']
-        pdf.loc[(date, game_num), 'white_point'] = pdf.loc[(date, game_num), 'team_point']
-        pdf.loc[(date, game_num), 'color_point'] = pdf.loc[(date, game_num), 'opponent_point']
-
-    else:
-        if not row.win:
-            pdf.loc[(date, game_num), 'game_winner'] = 'White'
-        else:
-            pdf.loc[(date, game_num), 'game_winner'] = 'Color'
-        pdf.loc[(date, game_num), 'color_wins'] = pdf.loc[(date, game_num), 'team_wins']
-        pdf.loc[(date, game_num), 'white_wins'] = pdf.loc[(date, game_num), 'opponent_wins']
-        pdf.loc[(date, game_num), 'color_point'] = pdf.loc[(date, game_num), 'team_point']
-        pdf.loc[(date, game_num), 'white_point'] = pdf.loc[(date, game_num), 'opponent_point']
+            if not row.win:
+                pdf.loc[(date, game_num), 'game_winner'] = 'White'
+            else:
+                pdf.loc[(date, game_num), 'game_winner'] = 'Color'
+            pdf.loc[(date, game_num), 'color_wins'] = pdf.loc[(date, game_num), 'team_wins']
+            pdf.loc[(date, game_num), 'white_wins'] = pdf.loc[(date, game_num), 'opponent_wins']
+            pdf.loc[(date, game_num), 'color_point'] = pdf.loc[(date, game_num), 'team_point']
+            pdf.loc[(date, game_num), 'white_point'] = pdf.loc[(date, game_num), 'opponent_point']
 
 
-# In[15]:
+    # In[15]:
 
 
-pdf
+    pdf
 
 
-# In[16]:
+    # In[16]:
 
 
-def merge_two_dicts(x, y):
-    """Given two dicts, merge them into a new dict as a shallow copy."""
-    z = x.copy()
-    z.update(y)
-    return z
+    def merge_two_dicts(x, y):
+        """Given two dicts, merge them into a new dict as a shallow copy."""
+        z = x.copy()
+        z.update(y)
+        return z
 
 
-# In[17]:
+    # In[17]:
 
 
-scores = []
-for (date, game_num), game in pdf.iterrows():
-    base_dict = dict(date=date, end_time=game.end_time, game_num=game_num, white_wins=game.white_wins, color_wins=game.color_wins, game_winner=game.game_winner)
-    scores.append(merge_two_dicts(base_dict, dict(team='white', team_score=game.white_point, my_score=game.my_point if game.my_color == 'white' else None)))
-    scores.append(merge_two_dicts(base_dict, dict(team='color', team_score=game.color_point, my_score=game.my_point if game.my_color == 'colors' else None)))
+    scores = []
+    for (date, game_num), game in pdf.iterrows():
+        base_dict = dict(date=date, end_time=game.end_time, game_num=game_num, white_wins=game.white_wins, color_wins=game.color_wins, game_winner=game.game_winner)
+        scores.append(merge_two_dicts(base_dict, dict(team='white', team_score=game.white_point, my_score=game.my_point if game.my_color == 'white' else None)))
+        scores.append(merge_two_dicts(base_dict, dict(team='color', team_score=game.color_point, my_score=game.my_point if game.my_color == 'colors' else None)))
 
-score_df = pd.DataFrame(scores).set_index(['date', 'game_num', 'team'], drop=False).sort_values('end_time')
-
-
-# In[18]:
+    score_df = pd.DataFrame(scores).set_index(['date', 'game_num', 'team'], drop=False).sort_values('end_time')
 
 
-score_df
+    # In[18]:
 
 
-# In[23]:
+    score_df
 
 
-out_df = score_df[['date', 'white_wins', 'color_wins', 'game_num', 'game_winner', 'team', 'team_score', 'my_score']].fillna(value='').sort_values(['date', 'game_num'], ascending=False)
-out_df['date'] = out_df['date'].apply(lambda x: x.strftime('%Y-%m-%d'))
+    # In[23]:
 
 
-# In[24]:
+    out_df = score_df[['date', 'white_wins', 'color_wins', 'game_num', 'game_winner', 'team', 'team_score', 'my_score']].fillna(value='').sort_values(['date', 'game_num'], ascending=False)
+    out_df['date'] = out_df['date'].apply(lambda x: x.strftime('%Y-%m-%d'))
 
 
-out_df
+    # In[24]:
 
 
-# In[25]:
+    out_df
 
 
-## Write to data woksheet
-data = out_df.as_matrix().tolist()
-wks = sh.worksheet_by_title('game_summaries')
-wks.insert_rows(2, values=data, number=len(data))
+    # In[25]:
+
+
+    ## Write to data woksheet
+    data = out_df.as_matrix().tolist()
+    wks = wkb.worksheet_by_title('game_summaries')
+    wks.insert_rows(2, values=data, number=len(data))
+
+if __name__ == "__main__":
+    fire.Fire()
