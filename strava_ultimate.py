@@ -275,8 +275,9 @@ class Handler(object):
         # Select dates after start_date, sort
         processed_raw_points = processed_raw_points[processed_raw_points['Start Time'] > start_date]
         processed_raw_points = processed_raw_points.sort_values('Start Time', ascending=True).reset_index()
+        processed_raw_points['Elapsed Time'].fillna(0, inplace=True)
 
-        print(processed_raw_points.columns)
+        out_data = None
 
         for day, gdf in processed_raw_points.groupby('Day'):
             print(day)
@@ -293,8 +294,6 @@ class Handler(object):
             if not activity_found:
                 team_wins, opponent_wins, color = None, None, None
 
-            print(gdf.columns)
-
             events = gdf[['Type', 'Start Time', 'Elapsed Time']].as_matrix().tolist()
 
             games = process_events(events)
@@ -305,7 +304,8 @@ class Handler(object):
                 g['opponent_wins'] = opponent_wins
 
 
-            df = pd.DataFrame(games).dropna()
+            games
+            df = pd.DataFrame(games).dropna(axis=0)
 
             df['date'] = df.end_time.apply(lambda x: datetime(x.year, x.month, x.day))
             df = df.set_index(['date', 'game_num'], drop=False)
@@ -352,33 +352,43 @@ class Handler(object):
             score_df = pd.DataFrame(scores).set_index(['date', 'game_num', 'team'], drop=False).sort_values('end_time', ascending=False)
 
 
-        out_df = score_df[['date', 'game_num', 'game_winner', 'team', 'team_score', 'my_score']].fillna(value='').sort_values(['date', 'game_num'], ascending=False)
-        out_df['date'] = out_df['date'].apply(lambda x: x.strftime('%Y-%m-%d'))
+            out_df = score_df[['date', 'game_num', 'game_winner', 'team', 'team_score', 'my_score']].fillna(value='').sort_values(['date', 'game_num'], ascending=False)
+            out_df['date'] = out_df['date'].apply(lambda x: x.strftime('%Y-%m-%d'))
 
-        data = out_df.as_matrix()
+            data = out_df.as_matrix()
 
-        # "Unstack total wins for output"
-        temp = score_df.total_wins.unstack('team')
-        total_wins_out = temp.append(temp).sort_index(level='game_num', ascending=False)
-        total_wins_out = total_wins_out[['white', 'color']]
+            # "Unstack total wins for output"
+            temp = score_df.total_wins.unstack('team')
+            total_wins_out = temp.append(temp).sort_index(level='game_num', ascending=False)
+            total_wins_out = total_wins_out[['white', 'color']]
 
-        # Insert total_wins in correct location in output data
-        out_data = np.concatenate([data[:,0:1], total_wins_out, data[:,1:]], axis=1).tolist()
+            # Insert total_wins in correct location in output data
+            data = np.concatenate([data[:,0:1], total_wins_out, data[:,1:]], axis=1)
+
+            if out_data is None:
+                out_data = data
+            else:
+                out_data = np.concatenate([data, out_data], axis=0)
+
+        # wks = self.wkb.worksheet_by_title('game_summaries')
+        # wks.insert_rows(2, values=out_data.tolist(), number=len(out_data.tolist()))
 
 
-        wks = self.wkb.worksheet_by_title('game_summaries')
-        wks.insert_rows(2, values=out_data, number=len(out_data))
-
-
-        return pdf, score_df, out_df, total_wins_out
+        return processed_raw_points, gdf, games, pdf, score_df, out_df, total_wins_out, out_data
 
 ## %%
 
 
 handler = Handler()
-pdf, score_df, out_df, total_wins_out = handler.raw_to_summary(5)
+%break Handler.raw_to_summary
+processed_raw_points, gdf, games, pdf, score_df, out_df, total_wins_out, out_data = handler.raw_to_summary(3)
 
-total_wins_out
+out_df
+
+gdf
+
+score_df
+
 new_cols = pd.Index(['white', 'color'], name='team')
 
 
