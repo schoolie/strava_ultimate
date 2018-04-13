@@ -379,26 +379,10 @@ class Handler(object):
 ## %%
 
 
-handler = Handler()
-%break Handler.raw_to_summary
-processed_raw_points, gdf, games, pdf, score_df, out_df, total_wins_out, out_data = handler.raw_to_summary(3)
-
-out_df
-
-gdf
-
-score_df
-
-new_cols = pd.Index(['white', 'color'], name='team')
-
-
-temp = score_df.total_wins.unstack('team')
-total_wins_out = temp.append(temp).sort_index(level='game_num', ascending=False)
-
-
-data = np.array(data)
-out_data = np.concatenate([data[:,0:2], temp, data[:,2:]], axis=1)
-np.insert(data, 2, temp.as_matrix, axis=0)
+# handler = Handler()
+# %break Handler.raw_to_summary
+# processed_raw_points, gdf, games, pdf, score_df, out_df, total_wins_out, out_data = handler.raw_to_summary(3)
+#
 
 
 if __name__ == "__main__":
