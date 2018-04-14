@@ -238,7 +238,7 @@ class Handler(object):
         self.write_raw_points(raw_points)
 
     ## Get last entry from Data Spreadsheet
-    def raw_to_summary(self, debug_days=0):
+    def raw_to_summary(self, debug_days=0, write_out=True):
 
         ## Get date column from summary sheet
         summary_sheet = self.wkb.worksheet_by_title('game_summaries')
@@ -277,6 +277,9 @@ class Handler(object):
         processed_raw_points = processed_raw_points.sort_values('Start Time', ascending=True).reset_index()
         processed_raw_points['Elapsed Time'].fillna(0, inplace=True)
 
+        ## Remove large timedeltas between days
+        processed_raw_points.loc[processed_raw_points['Elapsed Time'] > timedelta(days=1), 'Elapsed Time'] = timedelta(seconds=0)
+
         out_data = None
 
         for day, gdf in processed_raw_points.groupby('Day'):
@@ -304,7 +307,7 @@ class Handler(object):
                 g['opponent_wins'] = opponent_wins
 
 
-            games
+
             df = pd.DataFrame(games).dropna(axis=0)
 
             df['date'] = df.end_time.apply(lambda x: datetime(x.year, x.month, x.day))
@@ -351,7 +354,6 @@ class Handler(object):
 
             score_df = pd.DataFrame(scores).set_index(['date', 'game_num', 'team'], drop=False).sort_values('end_time', ascending=False)
 
-
             out_df = score_df[['date', 'game_num', 'game_winner', 'team', 'team_score', 'my_score']].fillna(value='').sort_values(['date', 'game_num'], ascending=False)
             out_df['date'] = out_df['date'].apply(lambda x: x.strftime('%Y-%m-%d'))
 
@@ -370,8 +372,10 @@ class Handler(object):
             else:
                 out_data = np.concatenate([data, out_data], axis=0)
 
-        # wks = self.wkb.worksheet_by_title('game_summaries')
-        # wks.insert_rows(2, values=out_data.tolist(), number=len(out_data.tolist()))
+
+        if write_out:
+            wks = self.wkb.worksheet_by_title('game_summaries')
+            wks.insert_rows(2, values=out_data.tolist(), number=len(out_data.tolist()))
 
 
         return processed_raw_points, gdf, games, pdf, score_df, out_df, total_wins_out, out_data
@@ -381,8 +385,8 @@ class Handler(object):
 
 # handler = Handler()
 # %break Handler.raw_to_summary
-# processed_raw_points, gdf, games, pdf, score_df, out_df, total_wins_out, out_data = handler.raw_to_summary(3)
-#
+# processed_raw_points, gdf, games, pdf, score_df, out_df, total_wins_out, out_data = handler.raw_to_summary(8, write_out=False)
+
 
 
 if __name__ == "__main__":
