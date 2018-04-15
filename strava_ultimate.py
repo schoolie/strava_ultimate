@@ -163,10 +163,13 @@ class Handler(object):
             events = extract_events(run)
 
             point_df = pd.DataFrame(events, columns=['count', 'start_time', 'elapsed_time'])
+
+            point_df['date'] = point_df['start_time'].apply(lambda x: x.strftime('%Y-%m-%d'))
             point_df['start_time'] = point_df['start_time'].apply(lambda x: x.strftime('%Y-%m-%d %H:%M:%S'))
             point_df['elapsed_time'] = point_df['elapsed_time'].apply(lambda x: x.seconds)
 
-            data = point_df[['count', 'start_time']].sort_index(ascending=False).as_matrix().tolist()
+
+            data = point_df[['date', 'count', 'start_time']].sort_index(ascending=False).as_matrix().tolist()
             all_data = all_data + data
 
         return all_data
@@ -178,7 +181,7 @@ class Handler(object):
 
         wks = self.wkb.worksheet_by_title('raw_points')
 
-        dates = wks.get_col(2)
+        dates = wks.get_col(3)
         dates_recorded = [datetime.strptime(d, '%Y-%m-%d %H:%M:%S') for d in dates if d != '' and d != 'Start Time']
         start_date = max(dates_recorded) + timedelta(days=1) ## Go to day after last game
 
@@ -255,11 +258,11 @@ class Handler(object):
         all_values  = raw_sheet.get_all_values()
 
         # read col names
-        col_names = all_values[1][0:2]
+        col_names = all_values[1][1:3]
 
         # read values, discard formulas
-        val_lists = all_values[2:]
-        val_lists = [v[0:2] for v in val_lists]
+        val_lists = all_values[3:]
+        val_lists = [v[1:3] for v in val_lists]
 
         # to DataFrame
         processed_raw_points = pd.DataFrame(val_lists, columns=col_names)
@@ -383,9 +386,13 @@ class Handler(object):
 ## %%
 
 
-# handler = Handler()
-# %break Handler.raw_to_summary
-# processed_raw_points, gdf, games, pdf, score_df, out_df, total_wins_out, out_data = handler.raw_to_summary(8, write_out=False)
+## debug sandbox
+if False:
+    handler = Handler()
+    handler.strava_to_gsheet(3)
+
+    # %break Handler.raw_to_summary
+    processed_raw_points, gdf, games, pdf, score_df, out_df, total_wins_out, out_data = handler.raw_to_summary(3, write_out=True)
 
 
 
