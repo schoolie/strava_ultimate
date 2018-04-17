@@ -136,7 +136,7 @@ class Handler(object):
         ## Set up google sheets client, open worksheet
 
         # - Opens browser window, produces sheets.googleapis.com-python.json ... need to figure out how to productionize?
-        gc = pygsheets.authorize(outh_file='gsheet_secret.json', no_cache=True)
+        gc = pygsheets.authorize(outh_file='gsheet_secret.json', no_cache=True, outh_nonlocal=True)
 
         # Open spreadsheet and then workseet
         wkb = gc.open('Milburn Ultimate Scores')
@@ -389,10 +389,10 @@ class Handler(object):
 ## debug sandbox
 if False:
     handler = Handler()
-    handler.strava_to_gsheet()
-    processed_raw_points, gdf, games, pdf, score_df, out_df, total_wins_out, out_data = handler.raw_to_summary(0, write_out=True)
+    handler.strava_to_gsheet(3)
 
     # %break Handler.raw_to_summary
+    processed_raw_points, gdf, games, pdf, score_df, out_df, total_wins_out, out_data = handler.raw_to_summary(3, write_out=True)
 
 
 
