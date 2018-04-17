@@ -389,10 +389,10 @@ class Handler(object):
 ## debug sandbox
 if False:
     handler = Handler()
-    handler.strava_to_gsheet(3)
+    handler.strava_to_gsheet()
+    processed_raw_points, gdf, games, pdf, score_df, out_df, total_wins_out, out_data = handler.raw_to_summary(0, write_out=True)
 
     # %break Handler.raw_to_summary
-    processed_raw_points, gdf, games, pdf, score_df, out_df, total_wins_out, out_data = handler.raw_to_summary(3, write_out=True)
 
 
 
