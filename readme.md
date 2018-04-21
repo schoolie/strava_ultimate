@@ -14,3 +14,6 @@ Save to project directory as `gsheet_secret.json`
 
 `scp gsheet_secret.json [user]@[host]:~/strava_ultimate/gsheet_secret.json
 `
+
+When first running app, a link will appear in the server console, click the link, copy the code, and paste back in the terminal.
+This will create `sheets.googleapis.com-python.json`
