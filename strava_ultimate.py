@@ -378,13 +378,16 @@ class Handler(object):
             else:
                 out_data = np.concatenate([data, out_data], axis=0)
 
+        if out_data is not None:
+            if write_out:
+                wks = self.wkb.worksheet_by_title('game_summaries')
+                wks.insert_rows(2, values=out_data.tolist(), number=len(out_data.tolist()))
 
-        if write_out:
-            wks = self.wkb.worksheet_by_title('game_summaries')
-            wks.insert_rows(2, values=out_data.tolist(), number=len(out_data.tolist()))
 
+            return out_df.game_num.max() + 1
 
-        return out_df.game_num.max()
+        else:
+            return 0
 
 ## %%
 
@@ -402,12 +405,11 @@ def strava_to_gsheet(debug_days=0):
 
 @app.route('/raw_to_summary', defaults={'debug_days': 0})
 @app.route('/raw_to_summary/<debug_days>')
-
 def raw_to_summary(debug_days=0):
     debug_days = int(debug_days)
     games = handler.raw_to_summary(debug_days=debug_days)
 
-    return '{} games found'.format(games+1)
+    return '{} games found'.format(games)
 
 ## debug sandbox
 if False:
