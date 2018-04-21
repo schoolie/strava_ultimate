@@ -128,8 +128,6 @@ class Handler(object):
                 redirect_uri='{}/strava_auth'.format(host_url)
             )
 
-            print(authorize_url)
-
             self.strava_auth_url = authorize_url
 
             return
@@ -138,17 +136,9 @@ class Handler(object):
         with open('strava_secrets.json') as json_data:
             strava_secrets = json.load(json_data)
 
-        # access_token = strava_secrets['access_token']
-        #
-        # strava_client.access_token = access_token
-        # athlete = strava_client.get_athlete()
-
         ## Enable accessing private activities
-
-
         code = strava_secrets['auth_code']
-        access_token = strava_client.exchange_code_for_token(client_id=19435, client_secret='45b776d5beceeb34c290b8a56bf9829d6d4ea5d7', code=code)
-
+        access_token = strava_client.exchange_code_for_token(client_id=19435, client_secret=os.environ['STRAVA_CLIENT_SECRET'], code=code)
         strava_client = stravalib.client.Client(access_token=access_token)
         athlete = strava_client.get_athlete()
         # print('athlete name %s, athlete id %s.' %(athlete.firstname, athlete.id
