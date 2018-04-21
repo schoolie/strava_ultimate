@@ -3,7 +3,7 @@
 
 # In[1]:
 
-
+from flask import Flask
 import fire
 import json
 import stravalib
@@ -22,6 +22,7 @@ from datetime import datetime, timedelta, date
 
 logger = logging.getLogger()
 logger.setLevel(logging.ERROR)
+
 
 
 def merge_two_dicts(x, y):
@@ -240,6 +241,8 @@ class Handler(object):
         # Write to gsheets
         self.write_raw_points(raw_points)
 
+        return len(raw_points)
+
     ## Get last entry from Data Spreadsheet
     def raw_to_summary(self, debug_days=0, write_out=True):
 
@@ -381,10 +384,30 @@ class Handler(object):
             wks.insert_rows(2, values=out_data.tolist(), number=len(out_data.tolist()))
 
 
-        return processed_raw_points, gdf, games, pdf, score_df, out_df, total_wins_out, out_data
+        return out_df.game_num.max()
 
 ## %%
 
+app = Flask(__name__)
+handler = Handler()
+
+@app.route('/strava_to_gsheet', defaults={'debug_days': 0})
+@app.route('/strava_to_gsheet/<debug_days>')
+def strava_to_gsheet(debug_days=0):
+    debug_days = int(debug_days)
+    points = handler.strava_to_gsheet(debug_days=debug_days)
+
+    return '{} points found'.format(points)
+
+
+@app.route('/raw_to_summary', defaults={'debug_days': 0})
+@app.route('/raw_to_summary/<debug_days>')
+
+def raw_to_summary(debug_days=0):
+    debug_days = int(debug_days)
+    games = handler.raw_to_summary(debug_days=debug_days)
+
+    return '{} games found'.format(games+1)
 
 ## debug sandbox
 if False:
