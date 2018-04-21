@@ -1,5 +1,6 @@
 .ipynb_checkpoints/*
 sheets.googleapis.com*
 bin/*
+*.json
 
 *.pyc

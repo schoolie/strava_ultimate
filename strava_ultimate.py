@@ -118,6 +118,7 @@ class Handler(object):
 
         strava_client = stravalib.client.Client()
 
+        ## check if strava auth code has been stored yet
         if not os.path.exists('strava_secrets.json'):
             print('No Strava credentials stored')
 
@@ -146,7 +147,7 @@ class Handler(object):
         ## Set up google sheets client, open worksheet
 
         # - Opens browser window, produces sheets.googleapis.com-python.json ... need to figure out how to productionize?
-        gc = pygsheets.authorize(outh_file='gsheet_secret.json', no_cache=True, outh_nonlocal=True)
+        gc = pygsheets.authorize(outh_file='gsheet_secret.json', no_cache=True, outh_nonlocal=False)
 
         # Open spreadsheet and then workseet
         wkb = gc.open('Milburn Ultimate Scores')
