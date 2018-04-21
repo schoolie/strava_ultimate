@@ -3,7 +3,7 @@
 
 # In[1]:
 
-from flask import Flask
+from flask import Flask, redirect, request
 import fire
 import json
 import stravalib
@@ -115,10 +115,29 @@ class Handler(object):
     def __init__(self):
         #### Setting up strava API client
         ## Read Strava secret file
+
+        strava_client = stravalib.client.Client()
+
+        if not os.path.exists('strava_secrets.json'):
+            print('No Strava credentials stored')
+
+            host_url = os.environ['HOST_URL']
+
+            authorize_url = strava_client.authorization_url(
+                client_id=19435,
+                redirect_uri='{}/strava_auth'.format(host_url)
+            )
+
+            print(authorize_url)
+
+            self.strava_auth_url = authorize_url
+
+            return
+
+
         with open('strava_secrets.json') as json_data:
             strava_secrets = json.load(json_data)
 
-        strava_client = stravalib.client.Client()
         # access_token = strava_secrets['access_token']
         #
         # strava_client.access_token = access_token
@@ -392,11 +411,33 @@ class Handler(object):
 ## %%
 
 app = Flask(__name__)
-handler = Handler()
+
+def get_handler():
+    handler = Handler()
+
+    # Check if strava credentials are stored, get if necessary
+    if hasattr(handler, 'strava_auth_url'):
+        return redirect(handler.strava_auth_url)
+
+    return handler
+
+
+@app.route('/strava_auth')
+def store_strava_credentials():
+
+    code = request.args.get('code')
+
+    with open('strava_secrets.json', 'w') as outfile:
+        json.dump(dict(auth_code=code), outfile)
+
+    return(str(code))
 
 @app.route('/strava_to_gsheet', defaults={'debug_days': 0})
 @app.route('/strava_to_gsheet/<debug_days>')
 def strava_to_gsheet(debug_days=0):
+
+    handler = get_handler()
+
     debug_days = int(debug_days)
     points = handler.strava_to_gsheet(debug_days=debug_days)
 
