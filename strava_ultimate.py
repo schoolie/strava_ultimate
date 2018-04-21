@@ -3,7 +3,7 @@
 
 # In[1]:
 
-from flask import Flask, redirect, request
+from flask import Flask, redirect, request, render_template
 import fire
 import json
 import stravalib
@@ -403,15 +403,6 @@ class Handler(object):
 
 app = Flask(__name__)
 
-def get_handler():
-    handler = Handler()
-
-    # Check if strava credentials are stored, get if necessary
-    if hasattr(handler, 'strava_auth_url'):
-        return redirect(handler.strava_auth_url)
-
-    return handler
-
 
 @app.route('/strava_auth')
 def store_strava_credentials():
@@ -421,13 +412,16 @@ def store_strava_credentials():
     with open('strava_secrets.json', 'w') as outfile:
         json.dump(dict(auth_code=code), outfile)
 
-    return(str(code))
+    return(render_template('links.html'))
 
 @app.route('/strava_to_gsheet', defaults={'debug_days': 0})
 @app.route('/strava_to_gsheet/<debug_days>')
 def strava_to_gsheet(debug_days=0):
 
-    handler = get_handler()
+    handler = Handler()
+    # Check if strava credentials are stored, get if necessary
+    if hasattr(handler, 'strava_auth_url'):
+        return redirect(handler.strava_auth_url)
 
     debug_days = int(debug_days)
     points = handler.strava_to_gsheet(debug_days=debug_days)
@@ -438,6 +432,12 @@ def strava_to_gsheet(debug_days=0):
 @app.route('/raw_to_summary', defaults={'debug_days': 0})
 @app.route('/raw_to_summary/<debug_days>')
 def raw_to_summary(debug_days=0):
+
+    handler = Handler()
+    # Check if strava credentials are stored, get if necessary
+    if hasattr(handler, 'strava_auth_url'):
+        return redirect(handler.strava_auth_url)
+
     debug_days = int(debug_days)
     games = handler.raw_to_summary(debug_days=debug_days)
 
