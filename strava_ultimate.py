@@ -399,10 +399,221 @@ class Handler(object):
         else:
             return 0
 
+    def summary_stats(self):
+
+        ## Get date column from summary sheet
+        game_sheet = self.wkb.worksheet_by_title('game_summaries')
+        dates = game_sheet.get_col(1)
+        headings = game_sheet.get_row(2)
+
+        dates_recorded = [datetime.strptime(d, '%Y-%m-%d') for d in dates if d != '' and d != 'Date']
+
+        for n, d in enumerate(dates_recorded):
+            if d > datetime(year=2017, month=12, day=21):
+                last_row = n + 2 + 1
+        last_row
+
+        for n, h in enumerate(headings):
+            if len(h) > 0:
+                try:
+                    int(h)  ## Skip number columns at right
+                except ValueError:
+                    last_col = n + 1
+        last_col
+
+        # get all game values
+        columns = game_sheet.get_values((2, 1), (2, last_col))[0]
+        all_values  = game_sheet.get_values((3, 1), (last_row, last_col))
+
+        clean_columns = []
+        for c in columns:
+            clean_columns.append(c.replace(' ', '_').replace('(', '_').replace(')', '_'))
+
+        player_names = clean_columns[7:]
+
+        df = pd.DataFrame(all_values, columns=clean_columns)
+
+        df = df.set_index(['Date', 'Game_Number', 'Team']).unstack('Team')
+        df['Wins', 'white'] = df.White_Wins.white
+        df['Wins', 'color'] = df.Color_Wins.color
+        df = df.drop(['White_Wins', 'Color_Wins'], axis=1)
+        df = df.sort_index(ascending=False)
+        df = df.stack('Team')
+
+        # Count players on each team
+        player_counts = (df[player_names] != "").sum(axis=1).unstack('Team').sort_index(ascending=False)
+        df['player_count'] = player_counts.stack('Team')
+
+
+        ## Create boolean column for wins
+        tdf = df.unstack('Team')
+        tdf.loc[:,('Game_Won', 'color')] = tdf['Winner']['color'] == 'Color'
+        tdf.loc[:,('Game_Won', 'white')] = tdf['Winner']['white'] == 'White'
+
+        # Create numerical win tracking
+        tdf.loc[:,('Win_Value_Multiplier', 'color')] = 1
+        tdf.loc[:,('Win_Value_Multiplier', 'white')] = 1
+
+        tdf.loc[tdf.Team_Score.max(axis=1) < 5, 'Win_Value_Multiplier'] = 0.6
+
+
+        df = tdf.stack('Team')
+        df['Win_Value'] = df.Game_Won.astype(int) * df.Win_Value_Multiplier
+
+        temp = (df[player_names] != '') * 1
+
+        temp_df = df.copy()
+        temp_df[player_names] = temp[player_names]
+        pdf = temp_df[player_names + ['Win_Value']].astype(float).groupby(['Date', 'Team']).sum()
+
+        match_df = pdf.unstack('Team')
+
+        match_df.loc[:,('Match_Won', 'color')] = match_df['Win_Value']['color'] > match_df['Win_Value']['white']
+        match_df.loc[:,('Match_Won', 'white')] = match_df['Win_Value']['white'] > match_df['Win_Value']['color']
+
+        match_df = match_df.stack('Team') ### numerical wins tallied
+
+        df = tdf.stack('Team')
+
+        player_stats = {}
+        for name in player_names:
+            # name = 'David'
+            # name = 'Brian'
+
+            games_played = (df[name] != '').sum()
+            games_won = np.all([df[name] != '', df['Game_Won']], axis=0).sum()
+            games_lost = np.all([df[name] != '', ~df['Game_Won']], axis=0).sum()
+            win_pct = games_won / games_played * 100
+
+            games_color = (df.xs('color', level=2)[name] != '').sum()
+            games_white = (df.xs('white', level=2)[name] != '').sum()
+            pct_color = games_color / games_played * 100
+            pct_white = games_white / games_played * 100
+
+            team_score_for = df['Team_Score'][df[name] != ''].astype(int).sum()
+            team_score_against = df['Team_Score'][df[name] == ''].astype(int).sum()
+
+            filt_index = df[df[name] != ''].index
+
+            ### create df of games played by player
+            new_index = filt_index
+
+            # create new team labels that include both teams
+            team_labels = [0,1] * int(new_index.labels[0].shape[0])
+
+            new_labels = []
+            # duplicate date and game_num labels to match new team labels
+            for n in range(2):
+                temp = new_index.labels[n]
+                new = []
+                for t in temp:
+                    new.append(t)
+                    new.append(t)
+
+                new_labels.append(new)
+
+            new_labels.append(team_labels)
+
+            new_index = pd.MultiIndex(levels=new_index.levels, labels=new_labels, names=new_index.names)
+
+
+            ### create df of matches played by player
+            new_match_index = filt_index
+
+            # create new team labels that include both teams
+
+            new_match_labels = [[], []]
+            # duplicate date and game_num labels to match new team labels
+            for date, game_num, team in zip(*new_index.labels):
+                if game_num == 0:
+                    new_match_labels[0].append(date)
+                    new_match_labels[1].append(team)
+
+            new_match_index = pd.MultiIndex(
+                levels=[filt_index.levels[0], filt_index.levels[2]],
+                labels=new_match_labels,
+                names=[filt_index.names[0], filt_index.names[2]],)
+
+
+            player_df = df.reindex(index=new_index)
+            player_match_df = match_df.reindex(index=new_match_index)
+
+            ## Calc scores for and against
+            team_score_for = player_df['Team_Score'][player_df[name] != ''].astype(int).sum()
+            team_score_against = player_df['Team_Score'][player_df[name] == ''].astype(int).sum()
+            team_plus_minus = team_score_for - team_score_against
+
+
+            ## Calc total matches played
+            matches_played = player_match_df[name].shape[0] / 2
+
+            match_win_df = player_match_df[[name, 'Match_Won']].unstack('Team')
+
+            consistent_team = ~np.all(match_win_df[name] != 0, axis=1)
+
+            color_matches_won = np.all([match_win_df[name]['color'] != 0, match_win_df['Match_Won']['color'], consistent_team], axis=0).sum()
+            white_matches_won = np.all([match_win_df[name]['white'] != 0, match_win_df['Match_Won']['white'], consistent_team], axis=0).sum()
+            total_matches_won = color_matches_won + white_matches_won
+
+            color_matches_lost = np.all([match_win_df[name]['color'] != 0, ~match_win_df['Match_Won']['color'], consistent_team], axis=0).sum()
+            white_matches_lost = np.all([match_win_df[name]['white'] != 0, ~match_win_df['Match_Won']['white'], consistent_team], axis=0).sum()
+            total_matches_lost = color_matches_lost + white_matches_lost
+
+            match_win_percent = total_matches_won / matches_played * 100
+
+            player_stats[name] = [
+                games_played,
+                games_won,
+                games_lost,
+                win_pct,
+                games_color,
+                games_white,
+                pct_color,
+                pct_white,
+                team_score_for,
+                team_score_against,
+                team_plus_minus,
+                matches_played,
+                total_matches_won,
+                total_matches_lost,
+                match_win_percent,
+            ]
+
+        param_names = [
+            'Games Played',
+            'Games Won',
+            'Games Lost',
+            'Win Percent',
+            'Games Color',
+            'Games White',
+            'Percent Color',
+            'Percent White',
+            'Score For',
+            'Score Against',
+            'Score +/-',
+            'Matches Played',
+            'Matches Won',
+            'Matches Lost',
+            'Match Win %']
+
+        stats_df = pd.DataFrame(player_stats, index=param_names)
+        stats_df = stats_df[player_names]
+        stats_df
+## %%
+
+## debug sandbox
+if False:
+    os.environ['STRAVA_CLIENT_SECRET'] = "secret"
+
+    handler = Handler()
+    %break Handler.summary_stats
+    handler.summary_stats()
+
+
+
 ## %%
 
 app = Flask(__name__)
-
 
 @app.route('/strava_auth')
 def store_strava_credentials():
@@ -442,15 +653,6 @@ def raw_to_summary(debug_days=0):
     games = handler.raw_to_summary(debug_days=debug_days)
 
     return '{} games found'.format(games)
-
-## debug sandbox
-if False:
-    handler = Handler()
-    handler.strava_to_gsheet(3)
-
-    # %break Handler.raw_to_summary
-    processed_raw_points, gdf, games, pdf, score_df, out_df, total_wins_out, out_data = handler.raw_to_summary(3, write_out=True)
-
 
 
 if __name__ == "__main__":
