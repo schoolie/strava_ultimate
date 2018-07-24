@@ -464,12 +464,21 @@ class Handler(object):
 
         temp_df = df.copy()
         temp_df[player_names] = temp[player_names]
-        pdf = temp_df[player_names + ['Win_Value']].astype(float).groupby(['Date', 'Team']).sum()
+        pdf = temp_df[player_names + ['Game_Won', 'Win_Value']].astype(float).groupby(['Date', 'Team']).sum()
 
         match_df = pdf.unstack('Team')
 
+        match_df.loc[:,('Match_Won_Weighted', 'color')] = match_df['Win_Value']['color'] > match_df['Win_Value']['white']
+        match_df.loc[:,('Match_Won_Weighted', 'white')] = match_df['Win_Value']['white'] > match_df['Win_Value']['color']
+
+        match_df.loc[:,('Match_Tied_Weighted', 'color')] = match_df['Win_Value']['color'] == match_df['Win_Value']['white']
+        match_df.loc[:,('Match_Tied_Weighted', 'white')] = match_df['Win_Value']['white'] == match_df['Win_Value']['color']
+
         match_df.loc[:,('Match_Won', 'color')] = match_df['Win_Value']['color'] > match_df['Win_Value']['white']
         match_df.loc[:,('Match_Won', 'white')] = match_df['Win_Value']['white'] > match_df['Win_Value']['color']
+
+        match_df.loc[:,('Match_Tied', 'color')] = match_df['Win_Value']['color'] == match_df['Win_Value']['white']
+        match_df.loc[:,('Match_Tied', 'white')] = match_df['Win_Value']['white'] == match_df['Win_Value']['color']
 
         match_df = match_df.stack('Team') ### numerical wins tallied
 
@@ -545,9 +554,7 @@ class Handler(object):
 
 
             ## Calc total matches played
-            matches_played = player_match_df[name].shape[0] / 2
-
-            match_win_df = player_match_df[[name, 'Match_Won']].unstack('Team')
+            match_win_df = player_match_df[[name, 'Match_Won', 'Match_Won_Weighted', 'Match_Tied', 'Match_Tied_Weighted']].unstack('Team')
 
             consistent_team = ~np.all(match_win_df[name] != 0, axis=1)
 
@@ -555,9 +562,14 @@ class Handler(object):
             white_matches_won = np.all([match_win_df[name]['white'] != 0, match_win_df['Match_Won']['white'], consistent_team], axis=0).sum()
             total_matches_won = color_matches_won + white_matches_won
 
-            color_matches_lost = np.all([match_win_df[name]['color'] != 0, ~match_win_df['Match_Won']['color'], consistent_team], axis=0).sum()
-            white_matches_lost = np.all([match_win_df[name]['white'] != 0, ~match_win_df['Match_Won']['white'], consistent_team], axis=0).sum()
-            total_matches_lost = color_matches_lost + white_matches_lost
+            color_matches_tied = np.all([match_win_df[name]['color'] != 0, match_win_df['Match_Tied']['color'], consistent_team], axis=0).sum()
+            white_matches_tied = np.all([match_win_df[name]['white'] != 0, match_win_df['Match_Tied']['white'], consistent_team], axis=0).sum()
+            total_matches_tied = color_matches_tied + white_matches_tied
+
+            days_played = consistent_team.shape[0]
+            matches_played = consistent_team.sum()
+
+            total_matches_lost = matches_played - total_matches_won - total_matches_tied
 
             match_win_percent = total_matches_won / matches_played * 100
 
@@ -573,9 +585,11 @@ class Handler(object):
                 team_score_for,
                 team_score_against,
                 team_plus_minus,
+                days_played,
                 matches_played,
                 total_matches_won,
                 total_matches_lost,
+                total_matches_tied,
                 match_win_percent,
             ]
 
@@ -591,9 +605,11 @@ class Handler(object):
             'Score For',
             'Score Against',
             'Score +/-',
+            'Days Played',
             'Matches Played',
             'Matches Won',
             'Matches Lost',
+            'Matches Tied',
             'Match Win %']
 
         stats_df = pd.DataFrame(player_stats, index=param_names)
@@ -603,7 +619,7 @@ class Handler(object):
 
 ## debug sandbox
 if False:
-    os.environ['STRAVA_CLIENT_SECRET'] = "secret"
+    os.environ['STRAVA_CLIENT_SECRET'] = "45b776d5beceeb34c290b8a56bf9829d6d4ea5d7"
 
     handler = Handler()
     %break Handler.summary_stats
