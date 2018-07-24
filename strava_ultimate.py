@@ -112,48 +112,52 @@ def process_events(events):
     return games
 
 class Handler(object):
-    def __init__(self):
-        #### Setting up strava API client
-        ## Read Strava secret file
+    def __init__(self, load_strava=True):
 
-        strava_client = stravalib.client.Client()
+        if load_strava:
+            #### Setting up strava API client
+            ## Read Strava secret file
 
-        ## check if strava auth code has been stored yet
-        if not os.path.exists('strava_secrets.json'):
-            print('No Strava credentials stored')
+            strava_client = stravalib.client.Client()
 
-            host_url = os.environ['HOST_URL']
+            ## check if strava auth code has been stored yet
+            if not os.path.exists('strava_secrets.json'):
+                print('No Strava credentials stored')
 
-            authorize_url = strava_client.authorization_url(
-                client_id=19435,
-                redirect_uri='{}/strava_auth'.format(host_url)
-            )
+                host_url = os.environ['HOST_URL']
 
-            self.strava_auth_url = authorize_url
+                authorize_url = strava_client.authorization_url(
+                    client_id=19435,
+                    redirect_uri='{}/strava_auth'.format(host_url)
+                )
 
-            return
+                self.strava_auth_url = authorize_url
+
+                return
 
 
-        with open('strava_secrets.json') as json_data:
-            strava_secrets = json.load(json_data)
+            with open('strava_secrets.json') as json_data:
+                strava_secrets = json.load(json_data)
 
-        ## Enable accessing private activities
-        code = strava_secrets['auth_code']
-        access_token = strava_client.exchange_code_for_token(client_id=19435, client_secret=os.environ['STRAVA_CLIENT_SECRET'], code=code)
-        strava_client = stravalib.client.Client(access_token=access_token)
-        athlete = strava_client.get_athlete()
-        # print('athlete name %s, athlete id %s.' %(athlete.firstname, athlete.id
+            ## Enable accessing private activities
+            code = strava_secrets['auth_code']
+            access_token = strava_client.exchange_code_for_token(client_id=19435, client_secret=os.environ['STRAVA_CLIENT_SECRET'], code=code)
+            strava_client = stravalib.client.Client(access_token=access_token)
+            athlete = strava_client.get_athlete()
+            # print('athlete name %s, athlete id %s.' %(athlete.firstname, athlete.id
+
+            self.athlete = athlete
+            self.strava_client = strava_client
 
         ## Set up google sheets client, open worksheet
 
         # - Opens browser window, produces sheets.googleapis.com-python.json ... need to figure out how to productionize?
-        gc = pygsheets.authorize(outh_file='gsheet_secret.json', no_cache=True, outh_nonlocal=True)
+        gc = pygsheets.authorize(outh_file='gsheet_secret.json', no_cache=False, outh_nonlocal=True)
 
         # Open spreadsheet and then workseet
         wkb = gc.open('Milburn Ultimate Scores')
 
-        self.athlete = athlete
-        self.strava_client = strava_client
+
         self.wkb = wkb
 
     def get_raw_points(self, start_date):
@@ -484,6 +488,14 @@ class Handler(object):
 
         df = tdf.stack('Team')
 
+        from bokeh.plotting import figure, show, output_file
+        fig = figure(x_axis_type='datetime')
+
+        from bokeh.palettes import Category20
+        import itertools
+
+        colors = itertools.cycle(Category20[20])
+
         player_stats = {}
         for name in player_names:
             # name = 'David'
@@ -593,6 +605,12 @@ class Handler(object):
                 match_win_percent,
             ]
 
+            win_count = player_df.groupby('Date').sum()
+
+            # fig.line(range(win_count.index.shape[0]), win_count.Game_Won.cumsum(), legend=name, color=next(colors))
+            line = fig.line(pd.to_datetime(win_count.index), win_count.Game_Won.cumsum(), legend=name, color=next(colors))
+
+
         param_names = [
             'Games Played',
             'Games Won',
@@ -615,13 +633,21 @@ class Handler(object):
         stats_df = pd.DataFrame(player_stats, index=param_names)
         stats_df = stats_df[player_names]
         stats_df
+
+        show(fig)
+
+
 ## %%
 
 ## debug sandbox
 if False:
+<<<<<<< HEAD
     os.environ['STRAVA_CLIENT_SECRET'] = "45b776d5beceeb34c290b8a56bf9829d6d4ea5d7"
+=======
+>>>>>>> d2ae0cb29aea7e8b9fb3038abaa95d84d614320f
 
-    handler = Handler()
+    handler = Handler(load_strava=False)
+    %load_ext xdbg
     %break Handler.summary_stats
     handler.summary_stats()
 
