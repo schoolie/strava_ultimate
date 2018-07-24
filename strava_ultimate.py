@@ -479,6 +479,14 @@ class Handler(object):
 
         df = tdf.stack('Team')
 
+        from bokeh.plotting import figure, show, output_file
+        fig = figure(x_axis_type='datetime')
+
+        from bokeh.palettes import Category20
+        import itertools
+
+        colors = itertools.cycle(Category20[20])
+
         player_stats = {}
         for name in player_names:
             # name = 'David'
@@ -583,6 +591,12 @@ class Handler(object):
                 match_win_percent,
             ]
 
+            win_count = player_df.groupby('Date').sum()
+
+            # fig.line(range(win_count.index.shape[0]), win_count.Game_Won.cumsum(), legend=name, color=next(colors))
+            line = fig.line(pd.to_datetime(win_count.index), win_count.Game_Won.cumsum(), legend=name, color=next(colors))
+
+
         param_names = [
             'Games Played',
             'Games Won',
@@ -603,13 +617,17 @@ class Handler(object):
         stats_df = pd.DataFrame(player_stats, index=param_names)
         stats_df = stats_df[player_names]
         stats_df
+
+        show(fig)
+
+
 ## %%
 
 ## debug sandbox
 if False:
-    os.environ['STRAVA_CLIENT_SECRET'] = "secret"
 
     handler = Handler(load_strava=False)
+    %load_ext xdbg
     %break Handler.summary_stats
     handler.summary_stats()
 
