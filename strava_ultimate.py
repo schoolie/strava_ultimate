@@ -403,7 +403,7 @@ class Handler(object):
         else:
             return 0
 
-    def summary_stats(self):
+    def read_scoreboard(self):
 
         ## Get date column from summary sheet
         game_sheet = self.wkb.worksheet_by_title('game_summaries')
@@ -448,7 +448,6 @@ class Handler(object):
         player_counts = (df[player_names] != "").sum(axis=1).unstack('Team').sort_index(ascending=False)
         df['player_count'] = player_counts.stack('Team')
 
-
         ## Create boolean column for wins
         tdf = df.unstack('Team')
         tdf.loc[:,('Game_Won', 'color')] = tdf['Winner']['color'] == 'Color'
@@ -463,6 +462,7 @@ class Handler(object):
 
         df = tdf.stack('Team')
         df['Win_Value'] = df.Game_Won.astype(int) * df.Win_Value_Multiplier
+
 
         temp = (df[player_names] != '') * 1
 
@@ -486,13 +486,67 @@ class Handler(object):
 
         match_df = match_df.stack('Team') ### numerical wins tallied
 
-        df = tdf.stack('Team')
+        return df, match_df, player_names
+
+    def get_player_scoreboards(self, game_scoreboard, match_scoreboard, name):
+
+        filt_index = game_scoreboard[game_scoreboard[name] != ''].index
+
+        ### create game_scoreboard of games played by player
+        new_index = filt_index
+
+        # create new team labels that include both teams
+        team_labels = [0,1] * int(new_index.labels[0].shape[0])
+
+        new_labels = []
+        # duplicate date and game_num labels to match new team labels
+        for n in range(2):
+            temp = new_index.labels[n]
+            new = []
+            for t in temp:
+                new.append(t)
+                new.append(t)
+
+            new_labels.append(new)
+
+        new_labels.append(team_labels)
+
+        new_index = pd.MultiIndex(levels=new_index.levels, labels=new_labels, names=new_index.names)
+
+
+        ### create df of matches played by player
+        new_match_index = filt_index
+
+        # create new team labels that include both teams
+
+        new_match_labels = [[], []]
+        # duplicate date and game_num labels to match new team labels
+        for date, game_num, team in zip(*new_index.labels):
+            if game_num == 0:
+                new_match_labels[0].append(date)
+                new_match_labels[1].append(team)
+
+        new_match_index = pd.MultiIndex(
+            levels=[filt_index.levels[0], filt_index.levels[2]],
+            labels=new_match_labels,
+            names=[filt_index.names[0], filt_index.names[2]],)
+
+
+        player_df = game_scoreboard.reindex(index=new_index)
+        player_match_df = match_scoreboard.reindex(index=new_match_index)
+
+        return player_df, player_match_df
+
+    def summary_stats(self):
 
         from bokeh.plotting import figure, show, output_file
-        fig = figure(x_axis_type='datetime')
-
         from bokeh.palettes import Category20
         import itertools
+
+        game_scoreboard, match_scoreboard, player_names = self.read_scoreboard()
+
+        fig = figure(x_axis_type='datetime', width=1500, height=600)
+
 
         colors = itertools.cycle(Category20[20])
 
@@ -501,81 +555,43 @@ class Handler(object):
             # name = 'David'
             # name = 'Brian'
 
-            games_played = (df[name] != '').sum()
-            games_won = np.all([df[name] != '', df['Game_Won']], axis=0).sum()
-            games_lost = np.all([df[name] != '', ~df['Game_Won']], axis=0).sum()
+            player_game_scoreboard, player_match_scoreboard = self.get_player_scoreboards(game_scoreboard, match_scoreboard, name)
+
+            player_game_scoreboard.shape[0] / 2
+            (player_game_scoreboard[name] != '').sum()
+
+            games_played = (player_game_scoreboard[name] != '').sum()
+            games_won = np.all([player_game_scoreboard[name] != '', player_game_scoreboard['Game_Won']], axis=0).sum()
+            games_lost = np.all([player_game_scoreboard[name] != '', ~player_game_scoreboard['Game_Won']], axis=0).sum()
             win_pct = games_won / games_played * 100
 
-            games_color = (df.xs('color', level=2)[name] != '').sum()
-            games_white = (df.xs('white', level=2)[name] != '').sum()
+            games_color = (player_game_scoreboard.xs('color', level=2)[name] != '').sum()
+            games_white = (player_game_scoreboard.xs('white', level=2)[name] != '').sum()
             pct_color = games_color / games_played * 100
             pct_white = games_white / games_played * 100
 
-            team_score_for = df['Team_Score'][df[name] != ''].astype(int).sum()
-            team_score_against = df['Team_Score'][df[name] == ''].astype(int).sum()
-
-            filt_index = df[df[name] != ''].index
-
-            ### create df of games played by player
-            new_index = filt_index
-
-            # create new team labels that include both teams
-            team_labels = [0,1] * int(new_index.labels[0].shape[0])
-
-            new_labels = []
-            # duplicate date and game_num labels to match new team labels
-            for n in range(2):
-                temp = new_index.labels[n]
-                new = []
-                for t in temp:
-                    new.append(t)
-                    new.append(t)
-
-                new_labels.append(new)
-
-            new_labels.append(team_labels)
-
-            new_index = pd.MultiIndex(levels=new_index.levels, labels=new_labels, names=new_index.names)
+            team_score_for = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] != ''].astype(int).sum()
+            team_score_against = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] == ''].astype(int).sum()
 
 
-            ### create df of matches played by player
-            new_match_index = filt_index
-
-            # create new team labels that include both teams
-
-            new_match_labels = [[], []]
-            # duplicate date and game_num labels to match new team labels
-            for date, game_num, team in zip(*new_index.labels):
-                if game_num == 0:
-                    new_match_labels[0].append(date)
-                    new_match_labels[1].append(team)
-
-            new_match_index = pd.MultiIndex(
-                levels=[filt_index.levels[0], filt_index.levels[2]],
-                labels=new_match_labels,
-                names=[filt_index.names[0], filt_index.names[2]],)
-
-
-            player_df = df.reindex(index=new_index)
-            player_match_df = match_df.reindex(index=new_match_index)
 
             ## Calc scores for and against
-            team_score_for = player_df['Team_Score'][player_df[name] != ''].astype(int).sum()
-            team_score_against = player_df['Team_Score'][player_df[name] == ''].astype(int).sum()
+            team_score_for = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] != ''].astype(int).sum()
+            team_score_against = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] == ''].astype(int).sum()
             team_plus_minus = team_score_for - team_score_against
 
 
             ## Calc total matches played
-            match_win_df = player_match_df[[name, 'Match_Won', 'Match_Won_Weighted', 'Match_Tied', 'Match_Tied_Weighted']].unstack('Team')
+            player_match_wins = player_match_scoreboard[[name, 'Match_Won', 'Match_Won_Weighted', 'Match_Tied', 'Match_Tied_Weighted']].unstack('Team')
 
-            consistent_team = ~np.all(match_win_df[name] != 0, axis=1)
+            consistent_team = ~np.all(player_match_wins[name] != 0, axis=1)
 
-            color_matches_won = np.all([match_win_df[name]['color'] != 0, match_win_df['Match_Won']['color'], consistent_team], axis=0).sum()
-            white_matches_won = np.all([match_win_df[name]['white'] != 0, match_win_df['Match_Won']['white'], consistent_team], axis=0).sum()
+            color_matches_won = np.all([player_match_wins[name]['color'] != 0, player_match_wins['Match_Won']['color'], consistent_team], axis=0).sum()
+            white_matches_won = np.all([player_match_wins[name]['white'] != 0, player_match_wins['Match_Won']['white'], consistent_team], axis=0).sum()
             total_matches_won = color_matches_won + white_matches_won
 
-            color_matches_tied = np.all([match_win_df[name]['color'] != 0, match_win_df['Match_Tied']['color'], consistent_team], axis=0).sum()
-            white_matches_tied = np.all([match_win_df[name]['white'] != 0, match_win_df['Match_Tied']['white'], consistent_team], axis=0).sum()
+            color_matches_tied = np.all([player_match_wins[name]['color'] != 0, player_match_wins['Match_Tied']['color'], consistent_team], axis=0).sum()
+            white_matches_tied = np.all([player_match_wins[name]['white'] != 0, player_match_wins['Match_Tied']['white'], consistent_team], axis=0).sum()
             total_matches_tied = color_matches_tied + white_matches_tied
 
             days_played = consistent_team.shape[0]
@@ -605,10 +621,33 @@ class Handler(object):
                 match_win_percent,
             ]
 
-            win_count = player_df.groupby('Date').sum()
+            game_count = player_game_scoreboard.reset_index().set_index(['Date', 'Team'])[['Game_Number']].groupby('Date').max()
+            game_count['Game_Count'] = game_count.Game_Number.astype(int) + 1
+            game_count
+            numerical = player_game_scoreboard[['Team_Score','Game_Won','Win_Value']]
+            numerical
 
-            # fig.line(range(win_count.index.shape[0]), win_count.Game_Won.cumsum(), legend=name, color=next(colors))
-            line = fig.line(pd.to_datetime(win_count.index), win_count.Game_Won.cumsum(), legend=name, color=next(colors))
+            numerical_team = numerical[player_game_scoreboard[name] != ''].astype(float).groupby('Date').sum()
+            numerical_opponent = numerical[player_game_scoreboard[name] == ''].astype(float).groupby('Date').sum()
+            numerical_team['Game_Count'] = numerical_team.Game_Won.sum()
+            numerical_opponent['Game_Count'] = numerical_opponent.Game_Won.sum()
+
+            numerical_team['Players_Team'] = 1
+            numerical_opponent['Players_Team'] = 0
+
+            player_numerical = pd.concat([numerical_team, numerical_opponent]).set_index('Players_Team', append=True)
+            player_numerical.sort_index()
+
+            param = 'Win_Value'
+            difference = True
+            if difference:
+                data = player_numerical[param].xs(1, level='Players_Team') - player_numerical[param].xs(0, level='Players_Team')
+            else:
+                data = player_numerical[param].xs(1, level='Players_Team')
+
+            data
+
+            fig.line(pd.to_datetime(data.index), data.cumsum(), legend=name, color=next(colors))
 
 
         param_names = [
@@ -636,21 +675,21 @@ class Handler(object):
 
         show(fig)
 
+        # return stats_df, fig
+
 
 ## %%
 
 ## debug sandbox
 if False:
-<<<<<<< HEAD
-    os.environ['STRAVA_CLIENT_SECRET'] = "45b776d5beceeb34c290b8a56bf9829d6d4ea5d7"
-=======
->>>>>>> d2ae0cb29aea7e8b9fb3038abaa95d84d614320f
+    os.environ['STRAVA_CLIENT_SECRET'] = "secret"
 
     handler = Handler(load_strava=False)
-    %load_ext xdbg
+    # %load_ext xdbg
     %break Handler.summary_stats
     handler.summary_stats()
-
+    stats_df, fig = handler.summary_stats()
+    stats_df.T.head()
 
 
 ## %%
