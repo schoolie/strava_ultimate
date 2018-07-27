@@ -545,20 +545,19 @@ class Handler(object):
 
         game_scoreboard, match_scoreboard, player_names = self.read_scoreboard()
 
-        fig = figure(x_axis_type='datetime', width=1500, height=600)
 
 
-        colors = itertools.cycle(Category20[20])
 
         player_stats = {}
+        plot_data = {}
+
         for name in player_names:
+            print(name)
             # name = 'David'
             # name = 'Brian'
+            # name = 'JT'
 
             player_game_scoreboard, player_match_scoreboard = self.get_player_scoreboards(game_scoreboard, match_scoreboard, name)
-
-            player_game_scoreboard.shape[0] / 2
-            (player_game_scoreboard[name] != '').sum()
 
             games_played = (player_game_scoreboard[name] != '').sum()
             games_won = np.all([player_game_scoreboard[name] != '', player_game_scoreboard['Game_Won']], axis=0).sum()
@@ -580,26 +579,34 @@ class Handler(object):
             team_score_against = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] == ''].astype(int).sum()
             team_plus_minus = team_score_for - team_score_against
 
+            if player_match_scoreboard.shape[0] > 0:  # make sure player has played at least one complete match
 
-            ## Calc total matches played
-            player_match_wins = player_match_scoreboard[[name, 'Match_Won', 'Match_Won_Weighted', 'Match_Tied', 'Match_Tied_Weighted']].unstack('Team')
+                ## Calc total matches played
+                player_match_wins = player_match_scoreboard[[name, 'Match_Won', 'Match_Won_Weighted', 'Match_Tied', 'Match_Tied_Weighted']].unstack('Team')
+                consistent_team = ~np.all(player_match_wins[name] != 0, axis=1)
 
-            consistent_team = ~np.all(player_match_wins[name] != 0, axis=1)
+                color_matches_won = np.all([player_match_wins[name]['color'] != 0, player_match_wins['Match_Won']['color'], consistent_team], axis=0).sum()
+                white_matches_won = np.all([player_match_wins[name]['white'] != 0, player_match_wins['Match_Won']['white'], consistent_team], axis=0).sum()
+                total_matches_won = color_matches_won + white_matches_won
 
-            color_matches_won = np.all([player_match_wins[name]['color'] != 0, player_match_wins['Match_Won']['color'], consistent_team], axis=0).sum()
-            white_matches_won = np.all([player_match_wins[name]['white'] != 0, player_match_wins['Match_Won']['white'], consistent_team], axis=0).sum()
-            total_matches_won = color_matches_won + white_matches_won
+                color_matches_tied = np.all([player_match_wins[name]['color'] != 0, player_match_wins['Match_Tied']['color'], consistent_team], axis=0).sum()
+                white_matches_tied = np.all([player_match_wins[name]['white'] != 0, player_match_wins['Match_Tied']['white'], consistent_team], axis=0).sum()
+                total_matches_tied = color_matches_tied + white_matches_tied
 
-            color_matches_tied = np.all([player_match_wins[name]['color'] != 0, player_match_wins['Match_Tied']['color'], consistent_team], axis=0).sum()
-            white_matches_tied = np.all([player_match_wins[name]['white'] != 0, player_match_wins['Match_Tied']['white'], consistent_team], axis=0).sum()
-            total_matches_tied = color_matches_tied + white_matches_tied
+                days_played = consistent_team.shape[0]
+                matches_played = consistent_team.sum()
 
-            days_played = consistent_team.shape[0]
-            matches_played = consistent_team.sum()
+                total_matches_lost = matches_played - total_matches_won - total_matches_tied
 
-            total_matches_lost = matches_played - total_matches_won - total_matches_tied
+                match_win_percent = total_matches_won / matches_played * 100
 
-            match_win_percent = total_matches_won / matches_played * 100
+            else:
+                days_played = 0
+                matches_played = 0
+                total_matches_won = 0
+                total_matches_lost = 0
+                total_matches_tied = 0
+                match_win_percent = 0
 
             player_stats[name] = [
                 games_played,
@@ -618,8 +625,7 @@ class Handler(object):
                 total_matches_won,
                 total_matches_lost,
                 total_matches_tied,
-                match_win_percent,
-            ]
+                match_win_percent,]
 
             game_count = player_game_scoreboard.reset_index().set_index(['Date', 'Team'])[['Game_Number']].groupby('Date').max()
             game_count['Game_Count'] = game_count.Game_Number.astype(int) + 1
@@ -638,16 +644,20 @@ class Handler(object):
             player_numerical = pd.concat([numerical_team, numerical_opponent]).set_index('Players_Team', append=True)
             player_numerical.sort_index()
 
-            param = 'Win_Value'
-            difference = True
+            # param = 'Team_Score'
+            param = 'Game_Won'
+            # param = 'Win_Value'
+            # param = 'Game_Count'
+
+            difference = False
             if difference:
                 data = player_numerical[param].xs(1, level='Players_Team') - player_numerical[param].xs(0, level='Players_Team')
             else:
                 data = player_numerical[param].xs(1, level='Players_Team')
-
             data
 
-            fig.line(pd.to_datetime(data.index), data.cumsum(), legend=name, color=next(colors))
+            plot_data[name] = data
+            # fig.line(pd.to_datetime(data.index), data.cumsum(), legend=name, color=next(colors))
 
 
         param_names = [
@@ -671,9 +681,67 @@ class Handler(object):
 
         stats_df = pd.DataFrame(player_stats, index=param_names)
         stats_df = stats_df[player_names]
-        stats_df
+        # stats_df.T.sort_values('Win Percent', ascending=False)
 
-        show(fig)
+
+        from bokeh.io import show, output_file
+        from bokeh.models import HoverTool, ColumnDataSource
+        from bokeh.palettes import Category10
+        from bokeh.plotting import figure
+
+        pdf = pd.DataFrame(plot_data)
+        # plot_df = pdf.cumsum().reset_index()
+        pdf = pd.DataFrame(pdf.stack())
+        pdf.index = pdf.index.set_names(['date', 'name'])
+        pdf.columns = ['data']
+        pdf = pdf.reset_index('date')
+        pdf['date'] = pd.to_datetime(pdf['date'])
+        pdf['date_fmt'] = pdf['date'].apply(lambda x: x.strftime("%Y-%m-%d"))
+
+        pdf = pdf.reset_index()
+
+
+
+        source = ColumnDataSource.from_df(plot_df)
+
+        p = figure(x_axis_type='datetime', width=1500, height=600)
+
+        colors = itertools.cycle(Category20[20])
+        circles = []
+        for player in player_names:
+            temp = pdf.loc[pdf.name == player].copy()
+
+            temp['data'] = temp.data.cumsum()
+            # temp['data'] = temp.data.rolling(10).mean()
+
+            if temp.shape[0] > 0:
+                source = ColumnDataSource.from_df(temp)
+
+                c = next(colors)
+
+                circle = p.circle('date', 'data', color=c, legend=player+' ', source=source, size=7, name=player)
+                line = p.line('date', 'data', color=c, legend=player+' ', source=source)
+                circles.append(circle)
+
+        p.add_tools(HoverTool(
+            names=player_names,
+            tooltips = [
+                ("Player", '@name'),
+                ("Date", "@date_fmt"),
+                ("Value", "@data"), ]))
+
+        # p.legend.location = 'center_left'
+        # p.legend.click_policy="hide"
+
+        p.legend.location = 'top_left'
+        p.legend.click_policy = 'hide'
+        p.legend.glyph_height = 10
+        p.legend.glyph_width = 10
+        p.legend.label_text_font_size = '8pt'
+
+        show(p)
+
+
 
         # return stats_df, fig
 
@@ -685,7 +753,7 @@ if False:
     os.environ['STRAVA_CLIENT_SECRET'] = "secret"
 
     handler = Handler(load_strava=False)
-    # %load_ext xdbg
+    %load_ext xdbg
     %break Handler.summary_stats
     handler.summary_stats()
     stats_df, fig = handler.summary_stats()
