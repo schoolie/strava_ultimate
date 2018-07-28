@@ -545,14 +545,11 @@ class Handler(object):
 
         game_scoreboard, match_scoreboard, player_names = self.read_scoreboard()
 
-
-
-
         player_stats = {}
         plot_data = {}
 
+        # for name in ['Brad']:
         for name in player_names:
-            print(name)
             # name = 'David'
             # name = 'Brian'
             # name = 'JT'
@@ -633,10 +630,13 @@ class Handler(object):
             numerical = player_game_scoreboard[['Team_Score','Game_Won','Win_Value']]
             numerical
 
-            numerical_team = numerical[player_game_scoreboard[name] != ''].astype(float).groupby('Date').sum()
-            numerical_opponent = numerical[player_game_scoreboard[name] == ''].astype(float).groupby('Date').sum()
-            numerical_team['Game_Count'] = numerical_team.Game_Won.sum()
-            numerical_opponent['Game_Count'] = numerical_opponent.Game_Won.sum()
+            # numerical_team = numerical[player_game_scoreboard[name] != ''].astype(float).groupby('Date').sum()
+            # numerical_opponent = numerical[player_game_scoreboard[name] == ''].astype(float).groupby('Date').sum()
+
+            numerical_team = numerical[player_game_scoreboard[name] != ''].astype(float).reset_index('Team').drop('Team', axis=1)
+            numerical_opponent = numerical[player_game_scoreboard[name] == ''].astype(float).reset_index('Team').drop('Team', axis=1)
+            # numerical_team['Game_Count'] = numerical_team.Game_Won.sum()
+            # numerical_opponent['Game_Count'] = numerical_opponent.Game_Won.sum()
 
             numerical_team['Players_Team'] = 1
             numerical_opponent['Players_Team'] = 0
@@ -644,20 +644,52 @@ class Handler(object):
             player_numerical = pd.concat([numerical_team, numerical_opponent]).set_index('Players_Team', append=True)
             player_numerical.sort_index()
 
-            # param = 'Team_Score'
-            param = 'Game_Won'
-            # param = 'Win_Value'
-            # param = 'Game_Count'
+            def cummean(data):
+                return np.cumsum(data) / np.cumsum(np.ones(data.shape))
 
-            difference = False
-            if difference:
-                data = player_numerical[param].xs(1, level='Players_Team') - player_numerical[param].xs(0, level='Players_Team')
-            else:
-                data = player_numerical[param].xs(1, level='Players_Team')
-            data
+            def passthrough(data):
+                return data
 
-            plot_data[name] = data
+            data_stats = {}
+            for data_field in ['Team_Score', 'Game_Won', 'Win_Value']:
+
+                # delta_data = player_numerical[data_field].xs(1, level='Players_Team') - player_numerical[data_field].xs(0, level='Players_Team')
+                for_data = player_numerical[data_field].xs(1, level='Players_Team')
+                against_data = player_numerical[data_field].xs(0, level='Players_Team')
+                delta_data = for_data - against_data
+
+                for_stats = {}
+                against_stats = {}
+                delta_stats = {}
+
+                for stat, func in zip(['Sum', 'Avg', 'Raw'], [np.cumsum, cummean, passthrough]):
+                    if data_field == 'Game_Count' and stat != 'raw':
+                        pass
+                    else:
+                        for_stats[stat] = func(for_data)
+                        against_stats[stat] = func(against_data)
+                        delta_stats[stat] = func(delta_data)
+
+                data_stats[data_field] = dict(Delta=delta_stats, For=for_stats, Against=against_stats)
+
+            plot_data[name] = data_stats
             # fig.line(pd.to_datetime(data.index), data.cumsum(), legend=name, color=next(colors))
+
+
+        plot_data['Brad']['Game_Won']['Delta'].keys()
+        plot_data['Brad']['Game_Won']['For']['Avg']
+
+        reformed_plot_data = {}
+        for name, data_stats in plot_data.items():
+            for data_field, calc_data in data_stats.items():
+                for data_type, stats in calc_data.items():
+                    for stat, data in stats.items():
+                        reformed_plot_data[(name, data_field, data_type, stat)] = data
+
+        plot_data_df = pd.DataFrame(reformed_plot_data)
+        plot_data_df.columns.names = ['name', 'data_field', 'data_type', 'stat']
+
+        plot_data_df.stack(['data_field', 'data_type', 'stat']).to_csv('plot_data.csv')
 
 
         param_names = [
@@ -690,6 +722,7 @@ class Handler(object):
         from bokeh.plotting import figure
 
         pdf = pd.DataFrame(plot_data)
+        pdf
         # plot_df = pdf.cumsum().reset_index()
         pdf = pd.DataFrame(pdf.stack())
         pdf.index = pdf.index.set_names(['date', 'name'])
