@@ -689,6 +689,7 @@ class Handler(object):
         plot_data_df = pd.DataFrame(reformed_plot_data)
         plot_data_df.columns.names = ['name', 'data_field', 'data_type', 'stat']
 
+        #
         plot_data_df.stack(['data_field', 'data_type', 'stat']).to_csv('plot_data.csv')
 
 
@@ -714,15 +715,19 @@ class Handler(object):
         stats_df = pd.DataFrame(player_stats, index=param_names)
         stats_df = stats_df[player_names]
         # stats_df.T.sort_values('Win Percent', ascending=False)
+        stats_df.Brian.T
 
 
+        #######
+        ######
+        #######
         from bokeh.io import show, output_file
         from bokeh.models import HoverTool, ColumnDataSource
         from bokeh.palettes import Category10
         from bokeh.plotting import figure
 
         pdf = pd.DataFrame(plot_data)
-        pdf
+
         # plot_df = pdf.cumsum().reset_index()
         pdf = pd.DataFrame(pdf.stack())
         pdf.index = pdf.index.set_names(['date', 'name'])
