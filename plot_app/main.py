@@ -48,11 +48,25 @@ for player in all_player_names:
 
 
 
-min_games_slider = Slider(title="Min Games Played", start=0, end=df.shape[0], value=100, step=10)
+min_games_slider = Slider(title="Min Games Played", start=0, end=df.shape[0], value=70, step=10)
 data_field_select = Select(title="Data Field:", value='Game_Won', options=data_fields)
 data_type_select = Select(title="Data Type:", value='Delta', options=data_types)
 stat_select = Select(title="Stat Type:", value='Sum', options=stats)
+data_fields
+data_combos = {
+    'Total Wins':                  ['Game_Won', 'For', 'Sum'],
+    'Cumulative Wins Minus Losses':['Game_Won', 'Delta', 'Sum'],
+    'Win Percentage':              ['Game_Won', 'For', 'Avg'],
 
+    'Total Points For':            ['Team_Score', 'For', 'Sum'],
+    'Cumulative Points +/-':       ['Team_Score', 'Delta', 'Sum'],
+    'Avg Points For Per Game':     ['Team_Score', 'For', 'Avg'],
+    'Avg Points +/- Per Game':     ['Team_Score', 'Delta', 'Avg'],
+    'Avg Points Against Per Game': ['Team_Score', 'Against', 'Avg'],
+
+}
+
+combo_select = Select(title="Stat Type:", value='Win Percentage', options=list(data_combos.keys()))
 
 
 # Create Column Data Source that will be used by the plot
@@ -61,7 +75,9 @@ stat_select = Select(title="Stat Type:", value='Sum', options=stats)
 
 
 def select_stats():
-    data_df = df.xs([data_field_select.value, data_type_select.value, stat_select.value], level=['data_field', 'data_type', 'stat'], axis=1)
+    # data_df = df.xs([data_field_select.value, data_type_select.value, stat_select.value], level=['data_field', 'data_type', 'stat'], axis=1)
+    data_df = df.xs(data_combos[combo_select.value], level=['data_field', 'data_type', 'stat'], axis=1)
+
     min_games = min_games_slider.value
 
     selected_players = []
@@ -115,7 +131,9 @@ def update():
             plot_objects[player]['line'].visible = False
 
 
-controls = [min_games_slider, data_field_select, data_type_select, stat_select] #, boxoffice, genre, min_year, max_year, oscars, director, cast, x_axis, y_axis]
+# controls = [min_games_slider, data_field_select, data_type_select, stat_select] #, boxoffice, genre, min_year, max_year, oscars, director, cast, x_axis, y_axis]
+controls = [min_games_slider, combo_select] #, boxoffice, genre, min_year, max_year, oscars, director, cast, x_axis, y_axis]
+
 for control in controls:
     control.on_change('value', lambda attr, old, new: update())
 
