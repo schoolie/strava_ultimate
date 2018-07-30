@@ -60,7 +60,7 @@ data_combos = {
     'Avg Points +/- Per Game':     ['Team_Score', 'Delta', 'Avg'],
     'Avg Points Against Per Game': ['Team_Score', 'Against', 'Avg'],
 
-    'Average Points Per Game Over Last 15 Games': ['Team_Score', 'For', 'Rolling_Avg'],
+    'Avg Points/Game Over Last 15 Games': ['Team_Score', 'For', 'Rolling_Avg'],
     'Points +/- Over Last 15 Games': ['Team_Score', 'Delta', 'Rolling_Sum'],
     'Wins in Last 15 Games': ['Game_Won', 'For', 'Rolling_Sum'],
 }
