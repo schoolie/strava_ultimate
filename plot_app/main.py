@@ -99,13 +99,14 @@ def update():
         # player = 'Brian'
         player_pdf = pdf[player].dropna(axis=0)
 
-        if stat_select.value == 'Avg':
+        stat_type = data_combos[combo_select.value][2]
+        if stat_type == 'Avg':
             player_pdf = player_pdf.groupby('Date').mean()
 
-        elif stat_select.value == 'Raw':
+        elif stat_type == 'Raw':
             player_pdf = player_pdf.groupby('Date').sum()
 
-        elif stat_select.value == 'Sum':
+        elif stat_type == 'Sum':
             player_pdf = player_pdf.groupby('Date').max()
 
 
