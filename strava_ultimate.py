@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 import os
-
+import itertools
 from datetime import datetime, timedelta, date
 
 
@@ -539,20 +539,13 @@ class Handler(object):
 
     def summary_stats(self):
 
-        from bokeh.plotting import figure, show, output_file
-        from bokeh.palettes import Category20
-        import itertools
-
+        # Get data from drive, format
         game_scoreboard, match_scoreboard, player_names = self.read_scoreboard()
 
         player_stats = {}
         plot_data = {}
 
-        # for name in ['Brad']:
         for name in player_names:
-            # name = 'David'
-            # name = 'Brian'
-            # name = 'JT'
 
             player_game_scoreboard, player_match_scoreboard = self.get_player_scoreboards(game_scoreboard, match_scoreboard, name)
 
@@ -628,21 +621,14 @@ class Handler(object):
             game_count['Game_Count'] = game_count.Game_Number.astype(int) + 1
             game_count
             numerical = player_game_scoreboard[['Team_Score','Game_Won','Win_Value']]
-            numerical
-
-            # numerical_team = numerical[player_game_scoreboard[name] != ''].astype(float).groupby('Date').sum()
-            # numerical_opponent = numerical[player_game_scoreboard[name] == ''].astype(float).groupby('Date').sum()
 
             numerical_team = numerical[player_game_scoreboard[name] != ''].astype(float).reset_index('Team').drop('Team', axis=1)
             numerical_opponent = numerical[player_game_scoreboard[name] == ''].astype(float).reset_index('Team').drop('Team', axis=1)
-            # numerical_team['Game_Count'] = numerical_team.Game_Won.sum()
-            # numerical_opponent['Game_Count'] = numerical_opponent.Game_Won.sum()
 
             numerical_team['Players_Team'] = 1
             numerical_opponent['Players_Team'] = 0
 
             player_numerical = pd.concat([numerical_team, numerical_opponent]).set_index('Players_Team', append=True)
-            player_numerical.sort_index()
 
             def cummean(data):
                 return np.cumsum(data) / np.cumsum(np.ones(data.shape))
@@ -721,9 +707,7 @@ class Handler(object):
 
         stats_df = pd.DataFrame(player_stats, index=param_names)
         stats_df = stats_df[player_names]
-        # stats_df.T.sort_values('Win Percent', ascending=False)
-        stats_df = stats_df.T
-
+        stats_df = stats_df.T.sort_values('Games Played', ascending=False)
 
         ## Replace losers with blanks :)
         blank = ''
