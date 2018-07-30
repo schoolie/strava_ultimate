@@ -67,7 +67,7 @@ data_combos = {
 }
 
 combo_select = Select(title="Stat Type:", value='Win Percentage', options=list(data_combos.keys()))
-min_games_slider = Slider(title="Min Games Played", start=0, end=df.shape[0], value=70, step=10)
+min_games_slider = Slider(title="Min Games Played", start=0, end=df.shape[0], value=50, step=10)
 
 
 
