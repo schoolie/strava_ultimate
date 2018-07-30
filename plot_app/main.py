@@ -60,10 +60,9 @@ data_combos = {
     'Avg Points +/- Per Game':     ['Team_Score', 'Delta', 'Avg'],
     'Avg Points Against Per Game': ['Team_Score', 'Against', 'Avg'],
 
-    'Rolling Average Points Per Game': ['Team_Score', 'For', 'Rolling_Avg'],
-    'Rolling Points +/-': ['Team_Score', 'Delta', 'Rolling_Avg'],
-    'Rolling Wins Minus Losses': ['Game_Won', 'Delta', 'Rolling_Sum'],
-
+    'Average Points Per Game Over Last 15 Games': ['Team_Score', 'For', 'Rolling_Avg'],
+    'Points +/- Over Last 15 Games': ['Team_Score', 'Delta', 'Rolling_Sum'],
+    'Wins in Last 15 Games': ['Game_Won', 'For', 'Rolling_Sum'],
 }
 
 combo_select = Select(title="Stat Type:", value='Win Percentage', options=list(data_combos.keys()))
