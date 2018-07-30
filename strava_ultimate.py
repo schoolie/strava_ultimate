@@ -676,9 +676,7 @@ class Handler(object):
             # fig.line(pd.to_datetime(data.index), data.cumsum(), legend=name, color=next(colors))
 
 
-        plot_data['Brad']['Game_Won']['Delta'].keys()
-        plot_data['Brad']['Game_Won']['For']['Avg']
-
+        ### Format and write data for bokeh app
         reformed_plot_data = {}
         for name, data_stats in plot_data.items():
             for data_field, calc_data in data_stats.items():
@@ -715,80 +713,31 @@ class Handler(object):
         stats_df = pd.DataFrame(player_stats, index=param_names)
         stats_df = stats_df[player_names]
         # stats_df.T.sort_values('Win Percent', ascending=False)
-        stats_df.Brian.T
+        stats_df = stats_df.T
 
 
-        #######
-        ######
-        #######
-        from bokeh.io import show, output_file
-        from bokeh.models import HoverTool, ColumnDataSource
-        from bokeh.palettes import Category10
-        from bokeh.plotting import figure
+        ## Replace losers with blanks :)
+        blank = ''
+        stats_df.loc[stats_df['Win Percent'] < 50, 'Win Percent'] = blank
+        stats_df.loc[stats_df['Match Win %'] < 50, 'Match Win %'] = blank
+        stats_df.loc[stats_df['Score +/-'] < 0, 'Score +/-'] = blank
 
-        pdf = pd.DataFrame(plot_data)
+        wks = self.wkb.worksheet_by_title('summary_stats')
+        wks.update_cells('B3', [[x] for x in stats_df.index.tolist()])
+        wks.update_cells('C3', stats_df.as_matrix().tolist())
+        wks.update_cells('C2', [stats_df.columns.tolist()])
 
-        # plot_df = pdf.cumsum().reset_index()
-        pdf = pd.DataFrame(pdf.stack())
-        pdf.index = pdf.index.set_names(['date', 'name'])
-        pdf.columns = ['data']
-        pdf = pdf.reset_index('date')
-        pdf['date'] = pd.to_datetime(pdf['date'])
-        pdf['date_fmt'] = pdf['date'].apply(lambda x: x.strftime("%Y-%m-%d"))
-
-        pdf = pdf.reset_index()
+        # wks.insert_rows(2, values=out_data.tolist(), number=len(out_data.tolist()))
 
 
 
-        source = ColumnDataSource.from_df(plot_df)
-
-        p = figure(x_axis_type='datetime', width=1500, height=600)
-
-        colors = itertools.cycle(Category20[20])
-        circles = []
-        for player in player_names:
-            temp = pdf.loc[pdf.name == player].copy()
-
-            temp['data'] = temp.data.cumsum()
-            # temp['data'] = temp.data.rolling(10).mean()
-
-            if temp.shape[0] > 0:
-                source = ColumnDataSource.from_df(temp)
-
-                c = next(colors)
-
-                circle = p.circle('date', 'data', color=c, legend=player+' ', source=source, size=7, name=player)
-                line = p.line('date', 'data', color=c, legend=player+' ', source=source)
-                circles.append(circle)
-
-        p.add_tools(HoverTool(
-            names=player_names,
-            tooltips = [
-                ("Player", '@name'),
-                ("Date", "@date_fmt"),
-                ("Value", "@data"), ]))
-
-        # p.legend.location = 'center_left'
-        # p.legend.click_policy="hide"
-
-        p.legend.location = 'top_left'
-        p.legend.click_policy = 'hide'
-        p.legend.glyph_height = 10
-        p.legend.glyph_width = 10
-        p.legend.label_text_font_size = '8pt'
-
-        show(p)
-
-
-
-        # return stats_df, fig
 
 
 ## %%
 
 ## debug sandbox
 if False:
-    os.environ['STRAVA_CLIENT_SECRET'] = "secret"
+    os.environ['STRAVA_CLIENT_SECRET'] = "45b776d5beceeb34c290b8a56bf9829d6d4ea5d7"
 
     handler = Handler(load_strava=False)
     %load_ext xdbg
@@ -831,7 +780,7 @@ def strava_to_gsheet(debug_days=0):
 @app.route('/raw_to_summary/<debug_days>')
 def raw_to_summary(debug_days=0):
 
-    handler = Handler()
+    handler = Handler(load_strava=False)
     # Check if strava credentials are stored, get if necessary
     if hasattr(handler, 'strava_auth_url'):
         return redirect(handler.strava_auth_url)
@@ -840,6 +789,14 @@ def raw_to_summary(debug_days=0):
     games = handler.raw_to_summary(debug_days=debug_days)
 
     return '{} games found'.format(games)
+
+@app.route('/summary_stats')
+def summary_stats():
+
+    handler = Handler(load_strava=False)
+    games = handler.summary_stats()
+
+    return 'summaries calculated'
 
 
 if __name__ == "__main__":

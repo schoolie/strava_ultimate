@@ -49,10 +49,10 @@ for player in all_player_names:
 
 
 min_games_slider = Slider(title="Min Games Played", start=0, end=df.shape[0], value=70, step=10)
-data_field_select = Select(title="Data Field:", value='Game_Won', options=data_fields)
-data_type_select = Select(title="Data Type:", value='Delta', options=data_types)
-stat_select = Select(title="Stat Type:", value='Sum', options=stats)
-data_fields
+# data_field_select = Select(title="Data Field:", value='Game_Won', options=data_fields)
+# data_type_select = Select(title="Data Type:", value='Delta', options=data_types)
+# stat_select = Select(title="Stat Type:", value='Sum', options=stats)
+
 data_combos = {
     'Total Wins':                  ['Game_Won', 'For', 'Sum'],
     'Cumulative Wins Minus Losses':['Game_Won', 'Delta', 'Sum'],
