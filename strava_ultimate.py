@@ -650,6 +650,12 @@ class Handler(object):
             def passthrough(data):
                 return data
 
+            def rollingmean(data):
+                return data.rolling(15).mean()
+
+            def rollingsum(data):
+                return data.rolling(15).sum()
+
             data_stats = {}
             for data_field in ['Team_Score', 'Game_Won', 'Win_Value']:
 
@@ -662,7 +668,10 @@ class Handler(object):
                 against_stats = {}
                 delta_stats = {}
 
-                for stat, func in zip(['Sum', 'Avg', 'Raw'], [np.cumsum, cummean, passthrough]):
+                for stat, func in zip(
+                    ['Sum', 'Avg', 'Raw', 'Rolling_Avg', 'Rolling_Sum'],
+                    [np.cumsum, cummean, passthrough, rollingmean, rollingsum]
+                    ):
                     if data_field == 'Game_Count' and stat != 'raw':
                         pass
                     else:
@@ -729,7 +738,17 @@ class Handler(object):
 
         # wks.insert_rows(2, values=out_data.tolist(), number=len(out_data.tolist()))
 
+## %%
+## debug sandbox
+ if False:
+     os.environ['STRAVA_CLIENT_SECRET'] = "45b776d5beceeb34c290b8a56bf9829d6d4ea5d7"
 
+     handler = Handler(load_strava=False)
+     %load_ext xdbg
+     %break Handler.summary_stats
+     handler.summary_stats()
+     stats_df, fig = handler.summary_stats()
+     stats_df.T.head()
 
 
 ## %%

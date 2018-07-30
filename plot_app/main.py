@@ -36,6 +36,8 @@ blocked_players = df.xs(['Game_Won', 'For', 'Avg'], level=['data_field', 'data_t
 shown_player_names = [n for n in all_player_names if n not in blocked_players]
 df = df[shown_player_names]
 
+df.head()
+
 for player in shown_player_names:
     color=next(colors)
     source = ColumnDataSource(data=dict(name=[], date=[], date_fmt=[], data=[]))
@@ -64,6 +66,11 @@ data_combos = {
     'Avg Points For Per Game':     ['Team_Score', 'For', 'Avg'],
     'Avg Points +/- Per Game':     ['Team_Score', 'Delta', 'Avg'],
     'Avg Points Against Per Game': ['Team_Score', 'Against', 'Avg'],
+
+
+    'Rolling Average Points Per Game': ['Team_Score', 'For', 'Rolling_Avg'],
+    'Rolling Points +/-': ['Team_Score', 'Delta', 'Rolling_Avg'],
+    'Rolling Wins Minus Losses': ['Game_Won', 'Delta', 'Rolling_Sum'],
 
 }
 
@@ -101,14 +108,17 @@ def update():
         player_pdf = pdf[player].dropna(axis=0)
 
         stat_type = data_combos[combo_select.value][2]
-        if stat_type == 'Avg':
+        if 'Avg' in stat_type:
             player_pdf = player_pdf.groupby('Date').mean()
 
         elif stat_type == 'Raw':
             player_pdf = player_pdf.groupby('Date').sum()
 
-        elif stat_type == 'Sum':
+        elif 'Sum' in stat_type:
             player_pdf = player_pdf.groupby('Date').max()
+            
+        else:
+            player_pdf = player_pdf.groupby('Date').mean()
 
 
         player_pdf = player_pdf.reset_index()[['Date', player]]
