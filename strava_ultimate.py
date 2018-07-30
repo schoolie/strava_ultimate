@@ -613,8 +613,8 @@ class Handler(object):
                 days_played,
                 matches_played,
                 total_matches_won,
-                total_matches_lost,
                 total_matches_tied,
+                total_matches_lost,
                 match_win_percent,]
 
             game_count = player_game_scoreboard.reset_index().set_index(['Date', 'Team'])[['Game_Number']].groupby('Date').max()
@@ -701,8 +701,8 @@ class Handler(object):
             'Days Played',
             'Matches Played',
             'Matches Won',
-            'Matches Lost',
             'Matches Tied',
+            'Matches Lost',
             'Match Win %']
 
         stats_df = pd.DataFrame(player_stats, index=param_names)
