@@ -14,9 +14,6 @@ df = pd.read_csv('plot_data.csv', index_col=[0,1,2,3,4])
 
 df = df.unstack(['data_field', 'data_type', 'stat']).sort_index(axis=1)
 
-df.Brian.dropna(axis=0).shape
-df.Brad.dropna(axis=0).shape
-
 ## get column labels for all levels of df
 all_player_names, data_fields, data_types, stats = [list(l) for l in df.columns.levels]
 
@@ -35,7 +32,11 @@ for player in all_player_names:
 all_player_names = list(pd.Series(game_counts).sort_values(ascending=False).index)
 df = df[all_player_names]
 
-for player in all_player_names:
+blocked_players = df.xs(['Game_Won', 'For', 'Avg'], level=['data_field', 'data_type', 'stat'], axis=1).fillna(method='ffill').iloc[-1,:].sort_values().index[0:20]
+shown_player_names = [n for n in all_player_names if n not in blocked_players]
+df = df[shown_player_names]
+
+for player in shown_player_names:
     color=next(colors)
     source = ColumnDataSource(data=dict(name=[], date=[], date_fmt=[], data=[]))
     circle = p.circle(x="date", y="data", source=source, size=7, color=color, hover_color=color, name=player, legend=player)
@@ -94,7 +95,7 @@ def update():
 
     circles = []
 
-    for player in all_player_names:
+    for player in shown_player_names:
 
         # player = 'Brian'
         player_pdf = pdf[player].dropna(axis=0)
