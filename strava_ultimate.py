@@ -731,27 +731,17 @@ class Handler(object):
         stats_df.loc[stats_df['Match Win %'] < 50, 'Match Win %'] = blank
         stats_df.loc[stats_df['Score +/-'] < 0, 'Score +/-'] = blank
 
+        ## Write data to spreadsheet
         wks = self.wkb.worksheet_by_title('summary_stats')
         wks.update_cells('B3', [[x] for x in stats_df.index.tolist()])
         wks.update_cells('C3', stats_df.as_matrix().tolist())
         wks.update_cells('C2', [stats_df.columns.tolist()])
 
-        # wks.insert_rows(2, values=out_data.tolist(), number=len(out_data.tolist()))
-
-## %%
-## debug sandbox
- if False:
-     os.environ['STRAVA_CLIENT_SECRET'] = "45b776d5beceeb34c290b8a56bf9829d6d4ea5d7"
-
-     handler = Handler(load_strava=False)
-     %load_ext xdbg
-     %break Handler.summary_stats
-     handler.summary_stats()
-     stats_df, fig = handler.summary_stats()
-     stats_df.T.head()
 
 
 ## %%
+
+### Define Flask app and routes
 
 app = Flask(__name__)
 

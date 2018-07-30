@@ -36,8 +36,6 @@ blocked_players = df.xs(['Game_Won', 'For', 'Avg'], level=['data_field', 'data_t
 shown_player_names = [n for n in all_player_names if n not in blocked_players]
 df = df[shown_player_names]
 
-df.head()
-
 for player in shown_player_names:
     color=next(colors)
     source = ColumnDataSource(data=dict(name=[], date=[], date_fmt=[], data=[]))
@@ -50,12 +48,7 @@ for player in shown_player_names:
     plot_objects[player] = dict(source=source, circle=circle, line=line)
 
 
-
-min_games_slider = Slider(title="Min Games Played", start=0, end=df.shape[0], value=70, step=10)
-# data_field_select = Select(title="Data Field:", value='Game_Won', options=data_fields)
-# data_type_select = Select(title="Data Type:", value='Delta', options=data_types)
-# stat_select = Select(title="Stat Type:", value='Sum', options=stats)
-
+## Build widgets
 data_combos = {
     'Total Wins':                  ['Game_Won', 'For', 'Sum'],
     'Cumulative Wins Minus Losses':['Game_Won', 'Delta', 'Sum'],
@@ -67,7 +60,6 @@ data_combos = {
     'Avg Points +/- Per Game':     ['Team_Score', 'Delta', 'Avg'],
     'Avg Points Against Per Game': ['Team_Score', 'Against', 'Avg'],
 
-
     'Rolling Average Points Per Game': ['Team_Score', 'For', 'Rolling_Avg'],
     'Rolling Points +/-': ['Team_Score', 'Delta', 'Rolling_Avg'],
     'Rolling Wins Minus Losses': ['Game_Won', 'Delta', 'Rolling_Sum'],
@@ -75,15 +67,14 @@ data_combos = {
 }
 
 combo_select = Select(title="Stat Type:", value='Win Percentage', options=list(data_combos.keys()))
-
-
-# Create Column Data Source that will be used by the plot
+min_games_slider = Slider(title="Min Games Played", start=0, end=df.shape[0], value=70, step=10)
 
 
 
 
 def select_stats():
-    # data_df = df.xs([data_field_select.value, data_type_select.value, stat_select.value], level=['data_field', 'data_type', 'stat'], axis=1)
+    """Function to select appropriate subset of data based on widget inputs"""
+
     data_df = df.xs(data_combos[combo_select.value], level=['data_field', 'data_type', 'stat'], axis=1)
 
     min_games = min_games_slider.value
@@ -98,6 +89,8 @@ def select_stats():
 
 
 def update():
+    """Updates plot when widget inputs change"""
+
     pdf, selected_players = select_stats()
 
     circles = []
@@ -116,7 +109,7 @@ def update():
 
         elif 'Sum' in stat_type:
             player_pdf = player_pdf.groupby('Date').max()
-            
+
         else:
             player_pdf = player_pdf.groupby('Date').mean()
 
