@@ -732,21 +732,6 @@ class Handler(object):
 
 
 
-
-## %%
-
-## debug sandbox
-if False:
-    os.environ['STRAVA_CLIENT_SECRET'] = "45b776d5beceeb34c290b8a56bf9829d6d4ea5d7"
-
-    handler = Handler(load_strava=False)
-    %load_ext xdbg
-    %break Handler.summary_stats
-    handler.summary_stats()
-    stats_df, fig = handler.summary_stats()
-    stats_df.T.head()
-
-
 ## %%
 
 app = Flask(__name__)
@@ -781,9 +766,6 @@ def strava_to_gsheet(debug_days=0):
 def raw_to_summary(debug_days=0):
 
     handler = Handler(load_strava=False)
-    # Check if strava credentials are stored, get if necessary
-    if hasattr(handler, 'strava_auth_url'):
-        return redirect(handler.strava_auth_url)
 
     debug_days = int(debug_days)
     games = handler.raw_to_summary(debug_days=debug_days)
