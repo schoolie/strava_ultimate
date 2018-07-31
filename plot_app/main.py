@@ -182,7 +182,7 @@ hover_tool = HoverTool(
 )
 
 
-p.add_tools(wheel_zoom, pan_tool, ResetTool())
+p.add_tools(wheel_zoom, pan_tool, hover_tool, ResetTool())
 
 p.toolbar.active_scroll = wheel_zoom
 p.toolbar.active_drag = pan_tool
