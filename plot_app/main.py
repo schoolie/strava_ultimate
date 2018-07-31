@@ -62,8 +62,7 @@ data_combos = {
 
     'Average Points Per Game Over Last 15 Games': ['Team_Score', 'For', 'Rolling_Avg'],
     'Points +/- Over Last 15 Games': ['Team_Score', 'Delta', 'Rolling_Sum'],
-    'Wins in Last 15 Games': ['Game_Won', 'For', 'Rolling_Sum'],
-}
+    'Wins in Last 15 Games': ['Game_Won', 'For', 'Rolling_Sum'],   }
 
 combo_select = Select(title="Stat Type:", value='Win Percentage', options=list(data_combos.keys()))
 min_games_slider = Slider(title="Min Games Played", start=0, end=df.shape[0], value=50, step=10)
@@ -93,6 +92,9 @@ def update():
     pdf, selected_players = select_stats()
 
     circles = []
+
+    data_min = None
+    data_max = None
 
     for player in shown_player_names:
 
@@ -127,6 +129,21 @@ def update():
             data=player_pdf.data,
         )
 
+        ## Calc new y_axis range
+        min_ = player_pdf.data.min()
+        max_ = player_pdf.data.max()
+        range_ = max_ - min_
+
+        smin = min_ - range_ * 0.1
+        smax = max_ + range_ * 0.1
+        if data_min is not None:
+            data_min = min(data_min, smin)
+            data_max = max(data_max, smax)
+        else:
+            data_min = smin
+            data_max = smax
+
+        ## Update line visibility
         if player in selected_players:
             plot_objects[player]['circle'].visible = True
             plot_objects[player]['line'].visible = True
@@ -134,6 +151,8 @@ def update():
             plot_objects[player]['circle'].visible = False
             plot_objects[player]['line'].visible = False
 
+    ## Update bounds when parameter changes
+    p.y_range.bounds = (data_min, data_max)
 
 # controls = [min_games_slider, data_field_select, data_type_select, stat_select] #, boxoffice, genre, min_year, max_year, oscars, director, cast, x_axis, y_axis]
 controls = [min_games_slider, combo_select] #, boxoffice, genre, min_year, max_year, oscars, director, cast, x_axis, y_axis]
