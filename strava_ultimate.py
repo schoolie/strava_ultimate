@@ -758,7 +758,10 @@ def strava_to_gsheet(debug_days=0):
 @app.route('/raw_to_summary/<debug_days>')
 def raw_to_summary(debug_days=0):
 
-    handler = Handler(load_strava=False)
+    handler = Handler()
+    # Check if strava credentials are stored, get if necessary
+    if hasattr(handler, 'strava_auth_url'):
+        return redirect(handler.strava_auth_url)
 
     debug_days = int(debug_days)
     games = handler.raw_to_summary(debug_days=debug_days)
