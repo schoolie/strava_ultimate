@@ -2,7 +2,7 @@ import pandas as pd
 
 from bokeh.plotting import figure
 from bokeh.layouts import layout, widgetbox
-from bokeh.models import ColumnDataSource, Div, WheelZoomTool, PanTool, HoverTool
+from bokeh.models import ColumnDataSource, Div, WheelZoomTool, PanTool, HoverTool, ResetTool
 from bokeh.models.widgets import Slider, Select, TextInput
 from bokeh.io import curdoc
 from bokeh.palettes import Category20
@@ -152,7 +152,10 @@ def update():
             plot_objects[player]['line'].visible = False
 
     ## Update bounds when parameter changes
-    p.y_range.bounds = (data_min, data_max)
+    # from bokeh.models import Range1d
+    # p.y_range = Range1d(start=data_min, end=data_max)
+    # p.y_range.bounds = (data_min, data_max)
+    # p.update(y_range=Range1d(start=data_min, end=data_max))
 
 # controls = [min_games_slider, data_field_select, data_type_select, stat_select] #, boxoffice, genre, min_year, max_year, oscars, director, cast, x_axis, y_axis]
 controls = [min_games_slider, combo_select] #, boxoffice, genre, min_year, max_year, oscars, director, cast, x_axis, y_axis]
@@ -178,7 +181,8 @@ hover_tool = HoverTool(
     ]
 )
 
-p.add_tools(wheel_zoom, pan_tool, hover_tool)
+
+p.add_tools(wheel_zoom, pan_tool, ResetTool())
 
 p.toolbar.active_scroll = wheel_zoom
 p.toolbar.active_drag = pan_tool
