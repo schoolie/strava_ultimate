@@ -732,18 +732,6 @@ class Handler(object):
         wks.update_cells('C2', [stats_df.columns.tolist()])
 
 ## %%
-## debug sandbox
- if False:
-
-     os.environ['STRAVA_CLIENT_SECRET'] = "45b776d5beceeb34c290b8a56bf9829d6d4ea5d7"
-
-     handler = Handler(load_strava=False)
-     %load_ext xdbg
-     %break Handler.summary_stats
-     handler.summary_stats()
-     stats_df, fig = handler.summary_stats()
-     stats_df.T.head()
-## %%
 
 ### Define Flask app and routes
 
