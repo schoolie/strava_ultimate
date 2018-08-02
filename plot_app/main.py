@@ -37,12 +37,27 @@ shown_player_names = [n for n in all_player_names if n not in blocked_players]
 df = df[shown_player_names]
 
 for player in shown_player_names:
-    color=next(colors)
+    if player == 'White_Team':
+        color = 'black'
+        line_width = 4
+        hover_line_width = 8
+        line_dash = 'dotted'
+    elif player == 'Color_Team':
+        color = 'black'
+        line_width = 4
+        hover_line_width = 8
+        line_dash = 'solid'
+    else:
+        color=next(colors)
+        line_width = 2
+        hover_line_width = 4
+        line_dash = 'solid'
+
     source = ColumnDataSource(data=dict(name=[], date=[], date_fmt=[], data=[]))
-    circle = p.circle(x="date", y="data", source=source, size=7, color=color, hover_color=color, name=player, legend=player)
-    line = p.line(x="date", y="data", source=source, color=color, hover_line_color=color, legend=player)
+    circle = p.circle(x="date", y="data", source=source, color=color, hover_color=color, name=player, legend=player, size=7)
+    line   =   p.line(x="date", y="data", source=source, color=color, hover_line_color=color, legend=player, line_width=line_width, line_dash=line_dash)
     circle.hover_glyph.size=20
-    line.hover_glyph.line_width=4
+    line.hover_glyph.line_width=hover_line_width
 
 
     plot_objects[player] = dict(source=source, circle=circle, line=line)

@@ -545,7 +545,16 @@ class Handler(object):
         player_stats = {}
         plot_data = {}
 
-        for name in player_names:
+        columns = ['White_Team', 'Color_Team'] + list(game_scoreboard.columns)
+        game_scoreboard['White_Team'] = ''
+        game_scoreboard['Color_Team'] = ''
+        game_scoreboard = game_scoreboard[columns]
+        game_scoreboard.loc[(slice(None), slice(None), ['white']), 'White_Team'] = 'x'
+        game_scoreboard.loc[(slice(None), slice(None), ['color']), 'Color_Team'] = 'x'
+
+        game_scoreboard.head()
+
+        for name in ['White_Team', 'Color_Team'] + player_names:
 
             player_game_scoreboard, player_match_scoreboard = self.get_player_scoreboards(game_scoreboard, match_scoreboard, name)
 
@@ -569,7 +578,7 @@ class Handler(object):
             team_score_against = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] == ''].astype(int).sum()
             team_plus_minus = team_score_for - team_score_against
 
-            if player_match_scoreboard.shape[0] > 0:  # make sure player has played at least one complete match
+            if player_match_scoreboard.shape[0] > 0 and name not in ['White_Team', 'Color_Team']:  # make sure player has played at least one complete match
 
                 ## Calc total matches played
                 player_match_wins = player_match_scoreboard[[name, 'Match_Won', 'Match_Won_Weighted', 'Match_Tied', 'Match_Tied_Weighted']].unstack('Team')
@@ -682,9 +691,10 @@ class Handler(object):
         plot_data_df = pd.DataFrame(reformed_plot_data)
         plot_data_df.columns.names = ['name', 'data_field', 'data_type', 'stat']
 
-        #
-        plot_data_df.stack(['data_field', 'data_type', 'stat']).to_csv('plot_data.csv')
+        plot_data_df.columns
 
+        plot_data_df.stack(['data_field', 'data_type', 'stat']).to_csv('plot_data.csv')
+        list(plot_data_df.columns.levels)
 
         param_names = [
             'Games Played',
@@ -706,7 +716,7 @@ class Handler(object):
             'Match Win %']
 
         stats_df = pd.DataFrame(player_stats, index=param_names)
-        stats_df = stats_df[player_names]
+        stats_df = stats_df[['White_Team', 'Color_Team'] + player_names]
         stats_df = stats_df.T.sort_values('Games Played', ascending=False)
 
         ## Replace losers with blanks :)
@@ -721,8 +731,18 @@ class Handler(object):
         wks.update_cells('C3', stats_df.as_matrix().tolist())
         wks.update_cells('C2', [stats_df.columns.tolist()])
 
+## %%
+## debug sandbox
+ if False:
 
+     os.environ['STRAVA_CLIENT_SECRET'] = "45b776d5beceeb34c290b8a56bf9829d6d4ea5d7"
 
+     handler = Handler(load_strava=False)
+     %load_ext xdbg
+     %break Handler.summary_stats
+     handler.summary_stats()
+     stats_df, fig = handler.summary_stats()
+     stats_df.T.head()
 ## %%
 
 ### Define Flask app and routes
