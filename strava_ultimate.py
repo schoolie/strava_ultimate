@@ -626,18 +626,20 @@ class Handler(object):
                 total_matches_lost,
                 match_win_percent,]
 
-            game_count = player_game_scoreboard.reset_index().set_index(['Date', 'Team'])[['Game_Number']].groupby('Date').max()
-            game_count['Game_Count'] = game_count.Game_Number.astype(int) + 1
-            game_count
+            # game_count = player_game_scoreboard.reset_index().set_index(['Date', 'Team'])[['Game_Number']].groupby('Date').max()
+            # game_count['Game_Count'] = game_count.Game_Number.astype(int) + 1
+            # game_count
             numerical = player_game_scoreboard[['Team_Score','Game_Won','Win_Value']]
 
             numerical_team = numerical[player_game_scoreboard[name] != ''].astype(float).reset_index('Team').drop('Team', axis=1)
             numerical_opponent = numerical[player_game_scoreboard[name] == ''].astype(float).reset_index('Team').drop('Team', axis=1)
 
             numerical_team['Players_Team'] = 1
+            numerical_team['Game_Played'] = 1
             numerical_opponent['Players_Team'] = 0
+            numerical_opponent['Game_Played'] = 0
 
-            player_numerical = pd.concat([numerical_team, numerical_opponent]).set_index('Players_Team', append=True)
+            player_numerical = pd.concat([numerical_team, numerical_opponent]).set_index('Players_Team', append=True).sort_index()
 
             def cummean(data):
                 return np.cumsum(data) / np.cumsum(np.ones(data.shape))
@@ -652,9 +654,8 @@ class Handler(object):
                 return data.rolling(15).sum()
 
             data_stats = {}
-            for data_field in ['Team_Score', 'Game_Won', 'Win_Value']:
+            for data_field in ['Team_Score', 'Game_Played', 'Game_Won', 'Win_Value']:
 
-                # delta_data = player_numerical[data_field].xs(1, level='Players_Team') - player_numerical[data_field].xs(0, level='Players_Team')
                 for_data = player_numerical[data_field].xs(1, level='Players_Team')
                 against_data = player_numerical[data_field].xs(0, level='Players_Team')
                 delta_data = for_data - against_data
@@ -665,20 +666,15 @@ class Handler(object):
 
                 for stat, func in zip(
                     ['Sum', 'Avg', 'Raw', 'Rolling_Avg', 'Rolling_Sum'],
-                    [np.cumsum, cummean, passthrough, rollingmean, rollingsum]
-                    ):
-                    if data_field == 'Game_Count' and stat != 'raw':
-                        pass
-                    else:
-                        for_stats[stat] = func(for_data)
-                        against_stats[stat] = func(against_data)
-                        delta_stats[stat] = func(delta_data)
+                    [np.cumsum, cummean, passthrough, rollingmean, rollingsum]):
+
+                    for_stats[stat] = func(for_data)
+                    against_stats[stat] = func(against_data)
+                    delta_stats[stat] = func(delta_data)
 
                 data_stats[data_field] = dict(Delta=delta_stats, For=for_stats, Against=against_stats)
 
             plot_data[name] = data_stats
-            # fig.line(pd.to_datetime(data.index), data.cumsum(), legend=name, color=next(colors))
-
 
         ### Format and write data for bokeh app
         reformed_plot_data = {}
@@ -691,10 +687,7 @@ class Handler(object):
         plot_data_df = pd.DataFrame(reformed_plot_data)
         plot_data_df.columns.names = ['name', 'data_field', 'data_type', 'stat']
 
-        plot_data_df.columns
-
         plot_data_df.stack(['data_field', 'data_type', 'stat']).to_csv('plot_data.csv')
-        list(plot_data_df.columns.levels)
 
         param_names = [
             'Games Played',
