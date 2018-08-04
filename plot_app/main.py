@@ -36,6 +36,7 @@ blocked_players = df.xs(['Game_Won', 'For', 'Avg'], level=['data_field', 'data_t
 shown_player_names = [n for n in all_player_names if n not in blocked_players]
 df = df[shown_player_names]
 
+
 for player in shown_player_names:
     if player == 'White_Team':
         color = 'black'
@@ -117,21 +118,9 @@ def update():
         player_pdf = pdf[player].dropna(axis=0)
 
         stat_type = data_combos[combo_select.value][2]
-        if 'Avg' in stat_type:
-            player_pdf = player_pdf.groupby('Date').mean()
 
-        elif stat_type == 'Raw':
-            player_pdf = player_pdf.groupby('Date').sum()
-
-        elif 'Sum' in stat_type:
-            player_pdf = player_pdf.groupby('Date').max()
-
-        else:
-            player_pdf = player_pdf.groupby('Date').mean()
-
-
-        player_pdf = player_pdf.reset_index()[['Date', player]]
-        player_pdf.columns = ['date', 'data']
+        player_pdf = player_pdf.reset_index()[['Date', 'Game_Number', player]]
+        player_pdf.columns = ['date', 'game_number', 'data']
         player_pdf['date_fmt'] = player_pdf['date']
         player_pdf['date'] = player_pdf['date'].apply(lambda x: datetime.strptime(x, "%Y-%m-%d"))
 
@@ -139,10 +128,9 @@ def update():
 
         plot_objects[player]['source'].data = dict(
             name=player_pdf.name,
-            date=player_pdf.date,
+            date=player_pdf.date + player_pdf.game_number * pd.Timedelta(hours=8), ## stagger markers for individual games
             date_fmt=player_pdf.date_fmt,
-            data=player_pdf.data,
-        )
+            data=player_pdf.data,        )
 
         ## Calc new y_axis range
         min_ = player_pdf.data.min()
