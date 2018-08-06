@@ -648,10 +648,26 @@ class Handler(object):
                 return data
 
             def rollingmean(data):
-                return data.rolling(15).mean()
+                data = for_data
+                temp = data.reset_index('Game_Number') ## get date index without game number
+                out = data.groupby('Date').mean().rolling(6).mean().reindex(temp.index) # groupby date, rolling average, expand to match dates from original
+                out = pd.DataFrame(out)  # convert from pd.Series
+
+                out['Game_Number'] = temp.Game_Number   ## add Game_Number info back to df
+                out = out.set_index('Game_Number', append=True)  ## set index back to original
+
+                return out.iloc[:,0]   ## return as pd.Series
 
             def rollingsum(data):
-                return data.rolling(15).sum()
+
+                temp = data.reset_index('Game_Number') ## get date index without game number
+                out = data.groupby('Date').sum().rolling(6).sum().reindex(temp.index) # groupby date, rolling average, expand to match dates from original
+                out = pd.DataFrame(out)  # convert from pd.Series
+
+                out['Game_Number'] = temp.Game_Number   ## add Game_Number info back to df
+                out = out.set_index('Game_Number', append=True)  ## set index back to original
+
+                return out.iloc[:,0]   ## return as pd.Series
 
             data_stats = {}
             for data_field in ['Team_Score', 'Game_Played', 'Game_Won', 'Win_Value']:
@@ -687,6 +703,7 @@ class Handler(object):
         plot_data_df = pd.DataFrame(reformed_plot_data)
         plot_data_df.columns.names = ['name', 'data_field', 'data_type', 'stat']
 
+        ### Write to csv for bokeh app
         plot_data_df.stack(['data_field', 'data_type', 'stat']).to_csv('plot_data.csv')
 
         param_names = [
