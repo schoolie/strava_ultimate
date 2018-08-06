@@ -54,8 +54,8 @@ for player in shown_player_names:
         hover_line_width = 4
         line_dash = 'solid'
 
-    source = ColumnDataSource(data=dict(name=[], date=[], date_fmt=[], data=[]))
-    circle = p.circle(x="date", y="data", source=source, color=color, hover_color=color, name=player, legend=player, size=7)
+    source = ColumnDataSource(data=dict(name=[], date=[], game_number=[], date_fmt=[], data=[]))
+    circle = p.circle(x="date", y="data", source=source, color=color, hover_color=color, name=player, legend=player, size=5)
     line   =   p.line(x="date", y="data", source=source, color=color, hover_line_color=color, legend=player, line_width=line_width, line_dash=line_dash)
     circle.hover_glyph.size=20
     line.hover_glyph.line_width=hover_line_width
@@ -66,6 +66,7 @@ for player in shown_player_names:
 
 ## Build widgets
 data_combos = {
+    'Total Games Played':          ['Game_Played', 'For', 'Sum'],
     'Total Wins':                  ['Game_Won', 'For', 'Sum'],
     'Cumulative Wins Minus Losses':['Game_Won', 'Delta', 'Sum'],
     'Win Percentage':              ['Game_Won', 'For', 'Avg'],
@@ -76,9 +77,9 @@ data_combos = {
     'Avg Points +/- Per Game':     ['Team_Score', 'Delta', 'Avg'],
     'Avg Points Against Per Game': ['Team_Score', 'Against', 'Avg'],
 
-    'Avg Points/Game Over Last 15 Games': ['Team_Score', 'For', 'Rolling_Avg'],
-    'Points +/- Over Last 15 Games': ['Team_Score', 'Delta', 'Rolling_Sum'],
-    'Wins in Last 15 Games': ['Game_Won', 'For', 'Rolling_Sum'],   }
+    'Avg Points/Game Over Last 6 Matches': ['Team_Score', 'For', 'Rolling_Avg'],
+    'Points +/- Over Last 6 Matches': ['Team_Score', 'Delta', 'Rolling_Sum'],
+    'Wins in Last 6 Matches': ['Game_Won', 'For', 'Rolling_Sum'],   }
 
 combo_select = Select(title="Stat Type:", value='Win Percentage', options=list(data_combos.keys()))
 min_games_slider = Slider(title="Min Games Played", start=0, end=df.shape[0], value=50, step=10)
@@ -119,16 +120,26 @@ def update():
 
         stat_type = data_combos[combo_select.value][2]
 
+        ## reindex
         player_pdf = player_pdf.reset_index()[['Date', 'Game_Number', player]]
         player_pdf.columns = ['date', 'game_number', 'data']
         player_pdf['date_fmt'] = player_pdf['date']
         player_pdf['date'] = player_pdf['date'].apply(lambda x: datetime.strptime(x, "%Y-%m-%d"))
 
+
+        ## only keep last game from day
+        last_game_levels = list(player_pdf.groupby('date').max().reset_index()[['date', 'game_number']].itertuples(index=False))
+        last_game_names = ['date', 'game_number']
+        last_game_index = pd.MultiIndex.from_tuples(last_game_levels, names=last_game_names)
+        player_pdf = player_pdf.set_index(['date', 'game_number']).reindex(last_game_index).reset_index()
+
         player_pdf['name'] = player
 
+        ## Update data source
         plot_objects[player]['source'].data = dict(
             name=player_pdf.name,
             date=player_pdf.date + player_pdf.game_number * pd.Timedelta(hours=8), ## stagger markers for individual games
+            game_number=player_pdf.game_number + 1,
             date_fmt=player_pdf.date_fmt,
             data=player_pdf.data,        )
 
@@ -157,11 +168,10 @@ def update():
     ## Update bounds when parameter changes
     # from bokeh.models import Range1d
     # p.y_range = Range1d(start=data_min, end=data_max)
-    # p.y_range.bounds = (data_min, data_max)
     # p.update(y_range=Range1d(start=data_min, end=data_max))
+    # p.y_range.bounds = (data_min, data_max)
 
-# controls = [min_games_slider, data_field_select, data_type_select, stat_select] #, boxoffice, genre, min_year, max_year, oscars, director, cast, x_axis, y_axis]
-controls = [min_games_slider, combo_select] #, boxoffice, genre, min_year, max_year, oscars, director, cast, x_axis, y_axis]
+controls = [min_games_slider, combo_select]
 
 for control in controls:
     control.on_change('value', lambda attr, old, new: update())
