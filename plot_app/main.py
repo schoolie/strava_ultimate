@@ -78,7 +78,12 @@ data_combos = {
     'Avg Points Against Per Game': ['Team_Score', 'Against', 'Avg'],
 
     'Avg Points/Game Over Last 6 Matches': ['Team_Score', 'For', 'Rolling_Avg'],
+    'Win % Over Last 6 Matches': ['Game_Won', 'For', 'Rolling_Avg'],
+
+    'Team Points Over Last 6 Matches': ['Team_Score', 'For', 'Rolling_Sum'],
     'Points +/- Over Last 6 Matches': ['Team_Score', 'Delta', 'Rolling_Sum'],
+    'Wins +/- Over Last 6 Matches': ['Game_Won', 'Delta', 'Rolling_Sum'],
+
     'Wins in Last 6 Matches': ['Game_Won', 'For', 'Rolling_Sum'],   }
 
 combo_select = Select(title="Stat Type:", value='Win Percentage', options=list(data_combos.keys()))
