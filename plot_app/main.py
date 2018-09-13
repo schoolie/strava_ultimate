@@ -26,7 +26,7 @@ colors = itertools.cycle(Category20[20])
 game_counts = {}
 
 for player in all_player_names:
-    game_counts[player] = df[player].dropna(axis=0).shape[0]
+    game_counts[player] = df[player].sum(axis=0)['Game_Played']['For']['Raw']
 
 ## Reorder df based on number of games played
 all_player_names = list(pd.Series(game_counts).sort_values(ascending=False).index)
@@ -87,9 +87,7 @@ data_combos = {
     'Wins in Last 6 Matches': ['Game_Won', 'For', 'Rolling_Sum'],   }
 
 combo_select = Select(title="Stat Type:", value='Win Percentage', options=list(data_combos.keys()))
-min_games_slider = Slider(title="Min Games Played", start=0, end=df.shape[0], value=50, step=10)
-
-
+min_games_slider = Slider(title="Min Games Played", start=25, end=df.shape[0], value=75, step=10)
 
 
 def select_stats():
