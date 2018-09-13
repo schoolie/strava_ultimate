@@ -28,16 +28,24 @@ game_counts = {}
 for player in all_player_names:
     game_counts[player] = df[player].sum(axis=0)['Game_Played']['For']['Raw']
 
-## Reorder df based on number of games played
-all_player_names = list(pd.Series(game_counts).sort_values(ascending=False).index)
+## Find players who have played > 25 games
+frequent_player_names = []
+for player, games in game_counts.items():
+    if games > 25:
+        frequent_player_names.append(player)
+
+## Reorder df based on number of games played and win percentage
+blocked_players = df.xs(['Game_Won', 'For', 'Avg'], level=['data_field', 'data_type', 'stat'], axis=1).fillna(method='ffill').iloc[-1,:].sort_values().index[0:20]
+blocked_players = [n for n in blocked_players if n in frequent_player_names]
+shown_players = [n for n in frequent_player_names if (n not in blocked_players) and (n in frequent_player_names)]
+
+shown_players = list(pd.Series(game_counts)[shown_players].sort_values(ascending=False).index)
+blocked_players = list(pd.Series(game_counts)[blocked_players].sort_values(ascending=False).index)
+all_player_names = shown_players + blocked_players
+
 df = df[all_player_names]
 
-blocked_players = df.xs(['Game_Won', 'For', 'Avg'], level=['data_field', 'data_type', 'stat'], axis=1).fillna(method='ffill').iloc[-1,:].sort_values().index[0:20]
-shown_player_names = [n for n in all_player_names if n not in blocked_players]
-df = df[shown_player_names]
-
-
-for player in shown_player_names:
+for player in all_player_names:
     if player == 'White_Team':
         color = 'black'
         line_width = 4
@@ -99,7 +107,7 @@ def select_stats():
 
     selected_players = []
     for player, games in game_counts.items():
-        if games > min_games:
+        if (games > min_games) and (player not in blocked_players):
             selected_players.append(player)
 
     return data_df, selected_players
@@ -116,7 +124,7 @@ def update():
     data_min = None
     data_max = None
 
-    for player in shown_player_names:
+    for player in all_player_names:
 
         # player = 'Brian'
         player_pdf = pdf[player].dropna(axis=0)
