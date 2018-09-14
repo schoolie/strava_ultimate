@@ -537,7 +537,7 @@ class Handler(object):
 
         return player_df, player_match_df
 
-    def summary_stats(self, start_date=None, end_date=None, write_to_google=True, csv_name='plot_data.csv'):
+    def summary_stats(self, start_date=None, end_date=None, write_to_google=True, csv_name='All Time.csv'):
 
         # Get data from drive, format
         game_scoreboard, match_scoreboard, player_names = self.read_scoreboard()
@@ -803,10 +803,23 @@ def raw_to_summary(debug_days=0):
 def summary_stats():
 
     handler = Handler(load_strava=False)
-    games = handler.summary_stats()
+
+    seasons = [
+        (True, 'All Time', None, None),
+        (False, 'Spring 2018', '2018-03-20', '2018-06-20'),
+        (False, 'Summer 2018', '2018-06-21', '2018-09-22'),
+    ]
+
+    for write, name, start, end in seasons:
+        games = handler.summary_stats(
+            write_to_google=write,
+            csv_name='{}.csv'.format(name),
+            start_date=start,
+            end_date=end
+        )
 
     return 'summaries calculated'
-
+summary_stats()
 
 if __name__ == "__main__":
     fire.Fire(Handler)
