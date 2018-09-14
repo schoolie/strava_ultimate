@@ -10,67 +10,6 @@ from datetime import datetime
 
 import itertools
 
-df = pd.read_csv('plot_data.csv', index_col=[0,1,2,3,4])
-
-df = df.unstack(['data_field', 'data_type', 'stat']).sort_index(axis=1)
-
-## get column labels for all levels of df
-all_player_names, data_fields, data_types, stats = [list(l) for l in df.columns.levels]
-
-
-p = figure(plot_height=800, plot_width=1200, title="", x_axis_type='datetime', tools='')
-
-plot_objects = {}
-colors = itertools.cycle(Category20[20])
-
-game_counts = {}
-
-for player in all_player_names:
-    game_counts[player] = df[player].sum(axis=0)['Game_Played']['For']['Raw']
-
-## Find players who have played > 25 games
-frequent_player_names = []
-for player, games in game_counts.items():
-    if games > 25:
-        frequent_player_names.append(player)
-
-## Reorder df based on number of games played and win percentage
-blocked_players = df.xs(['Game_Won', 'For', 'Avg'], level=['data_field', 'data_type', 'stat'], axis=1).fillna(method='ffill').iloc[-1,:].sort_values().index[0:20]
-blocked_players = [n for n in blocked_players if n in frequent_player_names]
-shown_players = [n for n in frequent_player_names if (n not in blocked_players) and (n in frequent_player_names)]
-
-shown_players = list(pd.Series(game_counts)[shown_players].sort_values(ascending=False).index)
-blocked_players = list(pd.Series(game_counts)[blocked_players].sort_values(ascending=False).index)
-all_player_names = shown_players + blocked_players
-
-df = df[all_player_names]
-
-for player in all_player_names:
-    if player == 'White_Team':
-        color = 'black'
-        line_width = 4
-        hover_line_width = 8
-        line_dash = 'dotted'
-    elif player == 'Color_Team':
-        color = 'black'
-        line_width = 4
-        hover_line_width = 8
-        line_dash = 'solid'
-    else:
-        color=next(colors)
-        line_width = 2
-        hover_line_width = 4
-        line_dash = 'solid'
-
-    source = ColumnDataSource(data=dict(name=[], date=[], game_number=[], date_fmt=[], data=[]))
-    circle = p.circle(x="date", y="data", source=source, color=color, hover_color=color, name=player, legend=player, size=5)
-    line   =   p.line(x="date", y="data", source=source, color=color, hover_line_color=color, legend=player, line_width=line_width, line_dash=line_dash)
-    circle.hover_glyph.size=20
-    line.hover_glyph.line_width=hover_line_width
-
-
-    plot_objects[player] = dict(source=source, circle=circle, line=line)
-
 
 ## Build widgets
 data_combos = {
@@ -93,131 +32,226 @@ data_combos = {
     'Wins +/- Over Last 6 Matches': ['Game_Won', 'Delta', 'Rolling_Sum'],
 
     'Wins in Last 6 Matches': ['Game_Won', 'For', 'Rolling_Sum'],   }
+data_combos = data_combos
 
 combo_select = Select(title="Stat Type:", value='Win Percentage', options=list(data_combos.keys()))
-min_games_slider = Slider(title="Min Games Played", start=25, end=df.shape[0], value=75, step=10)
-
-
-def select_stats():
-    """Function to select appropriate subset of data based on widget inputs"""
-
-    data_df = df.xs(data_combos[combo_select.value], level=['data_field', 'data_type', 'stat'], axis=1)
-
-    min_games = min_games_slider.value
-
-    selected_players = []
-    for player, games in game_counts.items():
-        if (games > min_games) and (player not in blocked_players):
-            selected_players.append(player)
-
-    return data_df, selected_players
+min_games_slider = Slider(title="Min Games Played", start=0, end=300, value=80, step=20)
 
 
 
-def update():
-    """Updates plot when widget inputs change"""
 
-    pdf, selected_players = select_stats()
+class Plotter(object):
 
-    circles = []
+    def __init__(self):
+        pass
 
-    data_min = None
-    data_max = None
+    def load_csv(self):
 
-    for player in all_player_names:
+        csv_name = 'season1.csv'
+        # self.df = pd.read_csv('plot_data.csv', index_col=[0,1,2,3,4])
+        self.df = pd.read_csv(csv_name, index_col=[0,1,2,3,4])
 
-        # player = 'Brian'
-        player_pdf = pdf[player].dropna(axis=0)
+        self.df = self.df.unstack(['data_field', 'data_type', 'stat']).sort_index(axis=1)
 
-        stat_type = data_combos[combo_select.value][2]
-
-        ## reindex
-        player_pdf = player_pdf.reset_index()[['Date', 'Game_Number', player]]
-        player_pdf.columns = ['date', 'game_number', 'data']
-        player_pdf['date_fmt'] = player_pdf['date']
-        player_pdf['date'] = player_pdf['date'].apply(lambda x: datetime.strptime(x, "%Y-%m-%d"))
+        ## get column labels for all levels of df
+        all_player_names, data_fields, data_types, stats = [list(l) for l in self.df.columns.levels]
 
 
-        ## only keep last game from day
-        last_game_levels = list(player_pdf.groupby('date').max().reset_index()[['date', 'game_number']].itertuples(index=False))
-        last_game_names = ['date', 'game_number']
-        last_game_index = pd.MultiIndex.from_tuples(last_game_levels, names=last_game_names)
-        player_pdf = player_pdf.set_index(['date', 'game_number']).reindex(last_game_index).reset_index()
+        p = figure(plot_height=800, plot_width=1200, title="", x_axis_type='datetime', tools='')
 
-        player_pdf['name'] = player
+        plot_objects = {}
+        colors = itertools.cycle(Category20[20])
 
-        ## Update data source
-        plot_objects[player]['source'].data = dict(
-            name=player_pdf.name,
-            date=player_pdf.date + player_pdf.game_number * pd.Timedelta(hours=8), ## stagger markers for individual games
-            game_number=player_pdf.game_number + 1,
-            date_fmt=player_pdf.date_fmt,
-            data=player_pdf.data,        )
+        game_counts = {}
 
-        ## Calc new y_axis range
-        min_ = player_pdf.data.min()
-        max_ = player_pdf.data.max()
-        range_ = max_ - min_
+        for player in all_player_names:
+            game_counts[player] = self.df[player].sum(axis=0)['Game_Played']['For']['Raw']
 
-        smin = min_ - range_ * 0.1
-        smax = max_ + range_ * 0.1
-        if data_min is not None:
-            data_min = min(data_min, smin)
-            data_max = max(data_max, smax)
-        else:
-            data_min = smin
-            data_max = smax
+        self.game_counts = game_counts
 
-        ## Update line visibility
-        if player in selected_players:
-            plot_objects[player]['circle'].visible = True
-            plot_objects[player]['line'].visible = True
-        else:
-            plot_objects[player]['circle'].visible = False
-            plot_objects[player]['line'].visible = False
+        max_games = pd.Series(game_counts).max()
+        num_players = len(game_counts)
 
-    ## Update bounds when parameter changes
-    # from bokeh.models import Range1d
-    # p.y_range = Range1d(start=data_min, end=data_max)
-    # p.update(y_range=Range1d(start=data_min, end=data_max))
-    # p.y_range.bounds = (data_min, data_max)
+        min_games_slider.end = max_games
+        if 'season' in csv_name:
+            min_games_slider.value = 0
+
+        ## Find players who have played > 25 games
+        frequent_player_names = []
+        for player, games in game_counts.items():
+            if games > max_games * 0.15:
+                frequent_player_names.append(player)
+
+        ## Reorder df based on number of games played and win percentage
+        blocked_players = self.df.xs(['Game_Won', 'For', 'Avg'], level=['data_field', 'data_type', 'stat'], axis=1).fillna(method='ffill').iloc[-1,:].sort_values().index[0:int(num_players/3)]
+        blocked_players = [n for n in blocked_players if n in frequent_player_names]
+        shown_players = [n for n in frequent_player_names if (n not in blocked_players) and (n in frequent_player_names)]
+
+        shown_players = list(pd.Series(game_counts)[shown_players].sort_values(ascending=False).index)
+        blocked_players = list(pd.Series(game_counts)[blocked_players].sort_values(ascending=False).index)
+        all_player_names = shown_players + blocked_players
+
+        self.blocked_players = blocked_players
+        self.all_player_names = all_player_names
+
+        self.df = self.df[all_player_names]
+
+        for player in all_player_names:
+            if player == 'White_Team':
+                color = 'black'
+                line_width = 4
+                hover_line_width = 8
+                line_dash = 'dotted'
+            elif player == 'Color_Team':
+                color = 'black'
+                line_width = 4
+                hover_line_width = 8
+                line_dash = 'solid'
+            else:
+                color=next(colors)
+                line_width = 2
+                hover_line_width = 4
+                line_dash = 'solid'
+
+            source = ColumnDataSource(data=dict(name=[], date=[], game_number=[], date_fmt=[], data=[]))
+            circle = p.circle(x="date", y="data", source=source, color=color, hover_color=color, name=player, legend=player, size=5)
+            line   =   p.line(x="date", y="data", source=source, color=color, hover_line_color=color, legend=player, line_width=line_width, line_dash=line_dash)
+            circle.hover_glyph.size=20
+            line.hover_glyph.line_width=hover_line_width
+
+
+            plot_objects[player] = dict(source=source, circle=circle, line=line)
+            self.plot_objects = plot_objects
+
+        p.legend.location = 'top_left'
+        p.legend.click_policy = 'hide'
+        p.legend.glyph_height = 10
+        p.legend.glyph_width = 10
+        p.legend.label_text_font_size = '8pt'
+
+        wheel_zoom = WheelZoomTool()
+        pan_tool = PanTool()
+        hover_tool = HoverTool(
+            tooltips = [
+                ("Player", '@name'),
+                ("Date", "@date_fmt"),
+                ("Value", "@data"),
+            ]
+        )
+
+        p.add_tools(wheel_zoom, pan_tool, hover_tool, ResetTool())
+
+        p.toolbar.active_scroll = wheel_zoom
+        p.toolbar.active_drag = pan_tool
+
+        self.p = p
+
+
+
+    def select_stats(self):
+        """Function to select appropriate subset of data based on widget inputs"""
+
+        data_df = self.df.xs(data_combos[combo_select.value], level=['data_field', 'data_type', 'stat'], axis=1)
+
+        min_games = min_games_slider.value
+
+        selected_players = []
+        for player, games in self.game_counts.items():
+            if (games > min_games) and (player not in self.blocked_players):
+                selected_players.append(player)
+
+        return data_df, selected_players
+
+
+
+    def update(self):
+        """Updates plot when widget inputs change"""
+
+        pdf, selected_players = self.select_stats()
+
+        circles = []
+
+        data_min = None
+        data_max = None
+
+        for player in self.all_player_names:
+
+            # player = 'Brian'
+            player_pdf = pdf[player].dropna(axis=0)
+
+            stat_type = data_combos[combo_select.value][2]
+
+            ## reindex
+            player_pdf = player_pdf.reset_index()[['Date', 'Game_Number', player]]
+            player_pdf.columns = ['date', 'game_number', 'data']
+            player_pdf['date_fmt'] = player_pdf['date']
+            player_pdf['date'] = player_pdf['date'].apply(lambda x: datetime.strptime(x, "%Y-%m-%d"))
+
+
+            ## only keep last game from day
+            last_game_levels = list(player_pdf.groupby('date').max().reset_index()[['date', 'game_number']].itertuples(index=False))
+            last_game_names = ['date', 'game_number']
+            last_game_index = pd.MultiIndex.from_tuples(last_game_levels, names=last_game_names)
+            player_pdf = player_pdf.set_index(['date', 'game_number']).reindex(last_game_index).reset_index()
+
+            player_pdf['name'] = player
+
+            ## Update data source
+            self.plot_objects[player]['source'].data = dict(
+                name=player_pdf.name,
+                date=player_pdf.date + player_pdf.game_number * pd.Timedelta(hours=8), ## stagger markers for individual games
+                game_number=player_pdf.game_number + 1,
+                date_fmt=player_pdf.date_fmt,
+                data=player_pdf.data,
+            )
+
+            ## Calc new y_axis range
+            min_ = player_pdf.data.min()
+            max_ = player_pdf.data.max()
+            range_ = max_ - min_
+
+            smin = min_ - range_ * 0.1
+            smax = max_ + range_ * 0.1
+            if data_min is not None:
+                data_min = min(data_min, smin)
+                data_max = max(data_max, smax)
+            else:
+                data_min = smin
+                data_max = smax
+
+            ## Update line visibility
+            if player in selected_players:
+                self.plot_objects[player]['circle'].visible = True
+                self.plot_objects[player]['line'].visible = True
+            else:
+                self.plot_objects[player]['circle'].visible = False
+                self.plot_objects[player]['line'].visible = False
+
+        ## Update bounds when parameter changes
+        # from bokeh.models import Range1d
+        # p.y_range = Range1d(start=data_min, end=data_max)
+        # p.update(y_range=Range1d(start=data_min, end=data_max))
+        # p.y_range.bounds = (data_min, data_max)
+
+## %%
+
+plotter = Plotter()
+plotter.load_csv()
 
 controls = [min_games_slider, combo_select]
 
 for control in controls:
-    control.on_change('value', lambda attr, old, new: update())
+    control.on_change('value', lambda attr, old, new: plotter.update())
 
 sizing_mode = 'fixed'  # 'scale_width' also looks nice with this example
-
-p.legend.location = 'top_left'
-p.legend.click_policy = 'hide'
-p.legend.glyph_height = 10
-p.legend.glyph_width = 10
-p.legend.label_text_font_size = '8pt'
-
-wheel_zoom = WheelZoomTool()
-pan_tool = PanTool()
-hover_tool = HoverTool(
-    tooltips = [
-        ("Player", '@name'),
-        ("Date", "@date_fmt"),
-        ("Value", "@data"),
-    ]
-)
-
-
-p.add_tools(wheel_zoom, pan_tool, hover_tool, ResetTool())
-
-p.toolbar.active_scroll = wheel_zoom
-p.toolbar.active_drag = pan_tool
 
 
 inputs = widgetbox(*controls, sizing_mode=sizing_mode)
 l = layout([
     [],
-    [inputs, p]], sizing_mode=sizing_mode)
+    [inputs, plotter.p]], sizing_mode=sizing_mode)
 
-update()  # initial load of the data
+plotter.update()  # initial load of the data
 
 curdoc().add_root(l)
 curdoc().title = "Stats"
