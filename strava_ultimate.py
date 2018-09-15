@@ -547,7 +547,6 @@ class Handler(object):
         if end_date is not None:
             game_scoreboard = game_scoreboard.loc[:end_date, :]
 
-        game_scoreboard
 
         player_stats = {}
         plot_data = {}
@@ -562,8 +561,7 @@ class Handler(object):
         game_scoreboard.head()
 
         for name in ['White_Team', 'Color_Team'] + player_names:
-            print(name)
-            
+
             player_game_scoreboard, player_match_scoreboard = self.get_player_scoreboards(game_scoreboard, match_scoreboard, name)
 
             games_played = (player_game_scoreboard[name] != '').sum()
@@ -715,7 +713,7 @@ class Handler(object):
         plot_data_df.columns.names = ['name', 'data_field', 'data_type', 'stat']
 
         ### Write to csv for bokeh app
-        plot_data_df.stack(['data_field', 'data_type', 'stat']).to_csv(csv_name)
+        plot_data_df.stack(['data_field', 'data_type', 'stat']).to_csv(os.path.join('plot_app', csv_name))
 
         param_names = [
             'Games Played',
@@ -737,6 +735,14 @@ class Handler(object):
             'Match Win %']
 
         stats_df = pd.DataFrame(player_stats, index=param_names)
+
+        updated_player_names = []
+        for c in player_names:
+            if c in stats_df.columns:
+                updated_player_names.append(c)
+
+        player_names = updated_player_names
+
         stats_df = stats_df[['White_Team', 'Color_Team'] + player_names]
         stats_df = stats_df.T.sort_values('Games Played', ascending=False)
 
@@ -819,7 +825,6 @@ def summary_stats():
         )
 
     return 'summaries calculated'
-summary_stats()
 
 if __name__ == "__main__":
     fire.Fire(Handler)
