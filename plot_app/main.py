@@ -8,8 +8,8 @@ from bokeh.io import curdoc
 from bokeh.palettes import Category20
 from datetime import datetime
 
+import os
 import itertools
-
 
 ## Build widgets
 data_combos = {
@@ -37,19 +37,49 @@ data_combos = data_combos
 combo_select = Select(title="Stat Type:", value='Win Percentage', options=list(data_combos.keys()))
 min_games_slider = Slider(title="Min Games Played", start=0, end=300, value=80, step=20)
 
+datafiles = []
+for name in os.listdir('plot_app/'):
+    if '.csv' in name:
+        datafiles.append(name)
+
+
+dataset_select = Select(title="Stat Period:", value='All Time', options=[d.split('.')[0] for d in datafiles])
 
 
 
 class Plotter(object):
 
     def __init__(self):
-        pass
+        self.plot_objects = {}
+
+        self.plot = figure(plot_height=800, plot_width=1200, title="", x_axis_type='datetime', tools='')
+
+        self.plot.legend.location = 'top_left'
+        self.plot.legend.click_policy = 'hide'
+        self.plot.legend.glyph_height = 10
+        self.plot.legend.glyph_width = 10
+        self.plot.legend.label_text_font_size = '8pt'
+
+        wheel_zoom = WheelZoomTool()
+        pan_tool = PanTool()
+        hover_tool = HoverTool(
+            tooltips = [
+                ("Player", '@name'),
+                ("Date", "@date_fmt"),
+                ("Value", "@data"),
+            ]
+        )
+
+        self.plot.add_tools(wheel_zoom, pan_tool, hover_tool, ResetTool())
+
+        self.plot.toolbar.active_scroll = wheel_zoom
+        self.plot.toolbar.active_drag = pan_tool
 
     def load_csv(self):
 
-        csv_name = 'season1.csv'
-        # self.df = pd.read_csv('plot_data.csv', index_col=[0,1,2,3,4])
-        self.df = pd.read_csv(csv_name, index_col=[0,1,2,3,4])
+        csv_name = dataset_select.value + '.csv'
+        print('loading {}'.format(csv_name))
+        self.df = pd.read_csv(os.path.join('plot_app', csv_name), index_col=[0,1,2,3,4])
 
         self.df = self.df.unstack(['data_field', 'data_type', 'stat']).sort_index(axis=1)
 
@@ -57,9 +87,6 @@ class Plotter(object):
         all_player_names, data_fields, data_types, stats = [list(l) for l in self.df.columns.levels]
 
 
-        p = figure(plot_height=800, plot_width=1200, title="", x_axis_type='datetime', tools='')
-
-        plot_objects = {}
         colors = itertools.cycle(Category20[20])
 
         game_counts = {}
@@ -95,56 +122,34 @@ class Plotter(object):
         self.all_player_names = all_player_names
 
         self.df = self.df[all_player_names]
+        print(self.df.shape)
 
         for player in all_player_names:
-            if player == 'White_Team':
-                color = 'black'
-                line_width = 4
-                hover_line_width = 8
-                line_dash = 'dotted'
-            elif player == 'Color_Team':
-                color = 'black'
-                line_width = 4
-                hover_line_width = 8
-                line_dash = 'solid'
-            else:
-                color=next(colors)
-                line_width = 2
-                hover_line_width = 4
-                line_dash = 'solid'
+            if player not in self.plot_objects:
+                if player == 'White_Team':
+                    color = 'black'
+                    line_width = 4
+                    hover_line_width = 8
+                    line_dash = 'dotted'
+                elif player == 'Color_Team':
+                    color = 'black'
+                    line_width = 4
+                    hover_line_width = 8
+                    line_dash = 'solid'
+                else:
+                    color=next(colors)
+                    line_width = 2
+                    hover_line_width = 4
+                    line_dash = 'solid'
 
-            source = ColumnDataSource(data=dict(name=[], date=[], game_number=[], date_fmt=[], data=[]))
-            circle = p.circle(x="date", y="data", source=source, color=color, hover_color=color, name=player, legend=player, size=5)
-            line   =   p.line(x="date", y="data", source=source, color=color, hover_line_color=color, legend=player, line_width=line_width, line_dash=line_dash)
-            circle.hover_glyph.size=20
-            line.hover_glyph.line_width=hover_line_width
+                self.source = ColumnDataSource(data=dict(name=[], date=[], game_number=[], date_fmt=[], data=[]))
+                circle = self.plot.circle(x="date", y="data", source=self.source, color=color, hover_color=color, name=player, legend=player, size=5)
+                line   = self.plot.line(x="date", y="data", source=self.source, color=color, hover_line_color=color, legend=player, line_width=line_width, line_dash=line_dash)
+                circle.hover_glyph.size=20
+                line.hover_glyph.line_width=hover_line_width
 
 
-            plot_objects[player] = dict(source=source, circle=circle, line=line)
-            self.plot_objects = plot_objects
-
-        p.legend.location = 'top_left'
-        p.legend.click_policy = 'hide'
-        p.legend.glyph_height = 10
-        p.legend.glyph_width = 10
-        p.legend.label_text_font_size = '8pt'
-
-        wheel_zoom = WheelZoomTool()
-        pan_tool = PanTool()
-        hover_tool = HoverTool(
-            tooltips = [
-                ("Player", '@name'),
-                ("Date", "@date_fmt"),
-                ("Value", "@data"),
-            ]
-        )
-
-        p.add_tools(wheel_zoom, pan_tool, hover_tool, ResetTool())
-
-        p.toolbar.active_scroll = wheel_zoom
-        p.toolbar.active_drag = pan_tool
-
-        self.p = p
+                self.plot_objects[player] = dict(source=self.source, circle=circle, line=line)
 
 
 
@@ -161,7 +166,6 @@ class Plotter(object):
                 selected_players.append(player)
 
         return data_df, selected_players
-
 
 
     def update(self):
@@ -229,27 +233,28 @@ class Plotter(object):
 
         ## Update bounds when parameter changes
         # from bokeh.models import Range1d
-        # p.y_range = Range1d(start=data_min, end=data_max)
+        # self.plot.y_range = Range1d(start=data_min, end=data_max)
         # p.update(y_range=Range1d(start=data_min, end=data_max))
-        # p.y_range.bounds = (data_min, data_max)
+        # self.plot.y_range.bounds = (data_min, data_max)
 
 ## %%
 
 plotter = Plotter()
 plotter.load_csv()
 
-controls = [min_games_slider, combo_select]
+controls = [dataset_select, min_games_slider, combo_select]
 
+dataset_select.on_change('value', lambda attr, old, new: plotter.load_csv())
 for control in controls:
     control.on_change('value', lambda attr, old, new: plotter.update())
 
-sizing_mode = 'fixed'  # 'scale_width' also looks nice with this example
 
+sizing_mode = 'fixed'  # 'scale_width' also looks nice with this example
 
 inputs = widgetbox(*controls, sizing_mode=sizing_mode)
 l = layout([
     [],
-    [inputs, plotter.p]], sizing_mode=sizing_mode)
+    [inputs, plotter.plot]], sizing_mode=sizing_mode)
 
 plotter.update()  # initial load of the data
 
