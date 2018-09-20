@@ -35,7 +35,7 @@ data_combos = {
 data_combos = data_combos
 
 combo_select = Select(title="Stat Type:", value='Win Percentage', options=list(data_combos.keys()))
-min_games_slider = Slider(title="Min Games Played", start=0, end=300, value=80, step=20)
+min_games_slider = Slider(title="Min Games Played", start=0, end=300, value=50, step=20)
 
 datafiles = []
 for name in os.listdir('plot_app/'):
@@ -53,12 +53,6 @@ class Plotter(object):
         self.plot_objects = {}
 
         self.plot = figure(plot_height=800, plot_width=1200, title="", x_axis_type='datetime', tools='')
-
-        self.plot.legend.location = 'top_left'
-        self.plot.legend.click_policy = 'hide'
-        self.plot.legend.glyph_height = 10
-        self.plot.legend.glyph_width = 10
-        self.plot.legend.label_text_font_size = '8pt'
 
         wheel_zoom = WheelZoomTool()
         pan_tool = PanTool()
@@ -100,19 +94,28 @@ class Plotter(object):
         num_players = len(game_counts)
 
         min_games_slider.end = max_games
-        if 'season' in csv_name:
+        if csv_name != 'All Time.csv':
             min_games_slider.value = 0
+        else:
+            min_games_slider.value = 50
 
         ## Find players who have played > 25 games
-        frequent_player_names = []
-        for player, games in game_counts.items():
-            if games > max_games * 0.15:
-                frequent_player_names.append(player)
+        if not hasattr(self, 'frequent_player_names'):
+            frequent_player_names = []
+            for player, games in game_counts.items():
+                # if games > max_games * 0.15:
+                if games >= 25:
+                    frequent_player_names.append(player)
+                    self.frequent_player_names = frequent_player_names
+        else:
+            frequent_player_names = self.frequent_player_names
+
+
 
         ## Reorder df based on number of games played and win percentage
         blocked_players = self.df.xs(['Game_Won', 'For', 'Avg'], level=['data_field', 'data_type', 'stat'], axis=1).fillna(method='ffill').iloc[-1,:].sort_values().index[0:int(num_players/3)]
-        blocked_players = [n for n in blocked_players if n in frequent_player_names]
-        shown_players = [n for n in frequent_player_names if (n not in blocked_players) and (n in frequent_player_names)]
+        blocked_players = [n for n in blocked_players if (n in frequent_player_names) and (n in all_player_names)]
+        shown_players = [n for n in frequent_player_names if (n not in blocked_players) and (n in all_player_names)]
 
         shown_players = list(pd.Series(game_counts)[shown_players].sort_values(ascending=False).index)
         blocked_players = list(pd.Series(game_counts)[blocked_players].sort_values(ascending=False).index)
@@ -124,8 +127,20 @@ class Plotter(object):
         self.df = self.df[all_player_names]
         print(self.df.shape)
 
+        # clear all curves before updating
+        for player in self.plot_objects.keys():
+            ## Update data source
+            self.plot_objects[player]['source'].data = dict(
+                name=[],
+                date=[],
+                game_number=[],
+                date_fmt=[],
+                data=[],
+            )
+
+        # Add curves that aren't in dataset yet
         for player in all_player_names:
-            if player not in self.plot_objects:
+            if player not in self.plot_objects.keys():
                 if player == 'White_Team':
                     color = 'black'
                     line_width = 4
@@ -152,6 +167,12 @@ class Plotter(object):
                 self.plot_objects[player] = dict(source=self.source, circle=circle, line=line)
 
 
+        self.plot.legend.location = 'top_left'
+        self.plot.legend.click_policy = 'hide'
+        self.plot.legend.glyph_height = 10
+        self.plot.legend.glyph_width = 10
+        self.plot.legend.label_text_font_size = '8pt'
+
 
     def select_stats(self):
         """Function to select appropriate subset of data based on widget inputs"""
@@ -177,6 +198,9 @@ class Plotter(object):
 
         data_min = None
         data_max = None
+
+
+
 
         for player in self.all_player_names:
 
