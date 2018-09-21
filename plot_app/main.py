@@ -61,8 +61,7 @@ data_table = DataTable(
     sortable=True,
     index_position=None,
     width=250,
-    height=600
-)
+    height=600)
 
 
 
@@ -99,6 +98,33 @@ class Plotter(object):
         ## get column labels for all levels of df
         all_player_names, data_fields, data_types, stats = [list(l) for l in self.df.columns.levels]
 
+        # clear all curves before updating
+        players_to_remove = []
+        for player in self.plot_objects.keys():
+            if player in all_player_names:
+                ## Update data source
+                self.plot_objects[player]['source'].data = dict(
+                    name=[],
+                    date=[],
+                    game_number=[],
+                    date_fmt=[],
+                    data=[],
+                )
+            else:
+                print(player, 'not in dataset')
+                renderers = self.plot_objects[player]
+                self.plot.renderers.remove(renderers['circle'])
+                self.plot.renderers.remove(renderers['line'])
+
+                for item in plotter.plot.legend[0].items:
+                    if item.label['value'] == player:
+                        plotter.plot.legend[0].items.remove(item)
+
+                players_to_remove.append(player)
+
+        for player in players_to_remove:
+            del self.plot_objects[player]
+
         colors = itertools.cycle(Category20[20])
 
         game_counts = {}
@@ -111,11 +137,7 @@ class Plotter(object):
         max_games = pd.Series(game_counts).max()
         num_players = len(game_counts)
 
-        min_games_slider.end = max_games
-        if csv_name != 'All Time.csv':
-            min_games_slider.value = int((max_games / 2))
-        else:
-            min_games_slider.value = 50
+
 
         ## Find players who have played > 25 games
         if not hasattr(self, 'frequent_player_names'):
@@ -145,16 +167,6 @@ class Plotter(object):
         self.df = self.df[all_player_names]
         print(self.df.shape)
 
-        # clear all curves before updating
-        for player in self.plot_objects.keys():
-            ## Update data source
-            self.plot_objects[player]['source'].data = dict(
-                name=[],
-                date=[],
-                game_number=[],
-                date_fmt=[],
-                data=[],
-            )
 
         # Add curves that aren't in dataset yet
         for player in all_player_names:
@@ -191,7 +203,13 @@ class Plotter(object):
         self.plot.legend.glyph_width = 10
         self.plot.legend.label_text_font_size = '8pt'
 
-        self.update()
+        ## update slider (triggers callback for update())
+        min_games_slider.end = max_games
+        print('break')
+        if csv_name != 'All Time.csv':
+            min_games_slider.value = int((max_games / 2))
+        else:
+            min_games_slider.value = 50
 
 
     def select_stats(self):
