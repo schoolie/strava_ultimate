@@ -16,6 +16,7 @@ data_combos = {
     'Total Games Played':              (['Game_Played', 'For', 'Sum'], '0'),
     'Total Wins':                      (['Game_Won', 'For', 'Sum'], '0'),
     'Cumulative Wins Minus Losses':    (['Game_Won', 'Delta', 'Sum'], '0'),
+    'Weighted Wins Minus Losses':      (['Win_Value', 'Delta', 'Sum'], '0.00'),
     'Win Percentage':                  (['Game_Won', 'For', 'Avg'], '0.0%'),
 
     'Total Points For':                (['Team_Score', 'For', 'Sum'], '0'),
