@@ -3,7 +3,7 @@ import pandas as pd
 from bokeh.plotting import figure
 from bokeh.layouts import layout, widgetbox
 from bokeh.models import ColumnDataSource, Div, WheelZoomTool, PanTool, HoverTool, ResetTool
-from bokeh.models.widgets import Slider, Select, TextInput
+from bokeh.models.widgets import Slider, Select, TextInput, DataTable, TableColumn, NumberFormatter
 from bokeh.io import curdoc
 from bokeh.palettes import Category20
 from datetime import datetime
@@ -13,25 +13,25 @@ import itertools
 
 ## Build widgets
 data_combos = {
-    'Total Games Played':          ['Game_Played', 'For', 'Sum'],
-    'Total Wins':                  ['Game_Won', 'For', 'Sum'],
-    'Cumulative Wins Minus Losses':['Game_Won', 'Delta', 'Sum'],
-    'Win Percentage':              ['Game_Won', 'For', 'Avg'],
+    'Total Games Played':              (['Game_Played', 'For', 'Sum'], '0'),
+    'Total Wins':                      (['Game_Won', 'For', 'Sum'], '0'),
+    'Cumulative Wins Minus Losses':    (['Game_Won', 'Delta', 'Sum'], '0'),
+    'Win Percentage':                  (['Game_Won', 'For', 'Avg'], '0.0%'),
 
-    'Total Points For':            ['Team_Score', 'For', 'Sum'],
-    'Cumulative Points +/-':       ['Team_Score', 'Delta', 'Sum'],
-    'Avg Points For Per Game':     ['Team_Score', 'For', 'Avg'],
-    'Avg Points +/- Per Game':     ['Team_Score', 'Delta', 'Avg'],
-    'Avg Points Against Per Game': ['Team_Score', 'Against', 'Avg'],
+    'Total Points For':                (['Team_Score', 'For', 'Sum'], '0'),
+    'Cumulative Points +/-':           (['Team_Score', 'Delta', 'Sum'], '0'),
+    'Avg Points For Per Game':         (['Team_Score', 'For', 'Avg'], '0.00'),
+    'Avg Points +/- Per Game':         (['Team_Score', 'Delta', 'Avg'], '0.00'),
+    'Avg Points Against Per Game':     (['Team_Score', 'Against', 'Avg'], '0.00'),
 
-    'Avg Points/Game Over Last 6 Matches': ['Team_Score', 'For', 'Rolling_Avg'],
-    'Win % Over Last 6 Matches': ['Game_Won', 'For', 'Rolling_Avg'],
+    'Avg Points/Game Over Last 6 Matches': (['Team_Score', 'For', 'Rolling_Avg'], '0.00'),
+    'Win % Over Last 6 Matches':       (['Game_Won', 'For', 'Rolling_Avg'], '0.0%'),
 
-    'Team Points Over Last 6 Matches': ['Team_Score', 'For', 'Rolling_Sum'],
-    'Points +/- Over Last 6 Matches': ['Team_Score', 'Delta', 'Rolling_Sum'],
-    'Wins +/- Over Last 6 Matches': ['Game_Won', 'Delta', 'Rolling_Sum'],
+    'Team Points Over Last 6 Matches': (['Team_Score', 'For', 'Rolling_Sum'], '0'),
+    'Points +/- Over Last 6 Matches':  (['Team_Score', 'Delta', 'Rolling_Sum'], '0'),
+    'Wins +/- Over Last 6 Matches':    (['Game_Won', 'Delta', 'Rolling_Sum'], '0'),
 
-    'Wins in Last 6 Matches': ['Game_Won', 'For', 'Rolling_Sum'],   }
+    'Wins in Last 6 Matches':          (['Game_Won', 'For', 'Rolling_Sum'], '0'),   }
 data_combos = data_combos
 
 combo_select = Select(title="Stat Type:", value='Win Percentage', options=list(data_combos.keys()))
@@ -44,6 +44,25 @@ for name in os.listdir('plot_app/'):
 
 
 dataset_select = Select(title="Stat Period:", value='All Time', options=[d.split('.')[0] for d in datafiles])
+
+
+table_source = ColumnDataSource(data=dict(index=[], name=[], data=[]))
+
+
+table_columns = [
+        TableColumn(field="name", title="Player"),
+        TableColumn(field="data", title="Stat", formatter=NumberFormatter(format=data_combos[combo_select.value][1])),
+    ]
+
+data_table = DataTable(
+    source=table_source,
+    columns=table_columns,
+    fit_columns=True,
+    sortable=True,
+    index_position=None,
+    width=250,
+    height=600
+)
 
 
 
@@ -80,7 +99,6 @@ class Plotter(object):
         ## get column labels for all levels of df
         all_player_names, data_fields, data_types, stats = [list(l) for l in self.df.columns.levels]
 
-
         colors = itertools.cycle(Category20[20])
 
         game_counts = {}
@@ -95,7 +113,7 @@ class Plotter(object):
 
         min_games_slider.end = max_games
         if csv_name != 'All Time.csv':
-            min_games_slider.value = 0
+            min_games_slider.value = int((max_games / 2))
         else:
             min_games_slider.value = 50
 
@@ -173,11 +191,13 @@ class Plotter(object):
         self.plot.legend.glyph_width = 10
         self.plot.legend.label_text_font_size = '8pt'
 
+        self.update()
+
 
     def select_stats(self):
         """Function to select appropriate subset of data based on widget inputs"""
 
-        data_df = self.df.xs(data_combos[combo_select.value], level=['data_field', 'data_type', 'stat'], axis=1)
+        data_df = self.df.xs(data_combos[combo_select.value][0], level=['data_field', 'data_type', 'stat'], axis=1)
 
         min_games = min_games_slider.value
 
@@ -192,6 +212,8 @@ class Plotter(object):
     def update(self):
         """Updates plot when widget inputs change"""
 
+        table_columns[1].formatter=NumberFormatter(format=data_combos[combo_select.value][1])
+
         pdf, selected_players = self.select_stats()
 
         circles = []
@@ -200,14 +222,14 @@ class Plotter(object):
         data_max = None
 
 
-
+        display_data = []
 
         for player in self.all_player_names:
 
             # player = 'Brian'
             player_pdf = pdf[player].dropna(axis=0)
 
-            stat_type = data_combos[combo_select.value][2]
+            stat_type = data_combos[combo_select.value][0][2]
 
             ## reindex
             player_pdf = player_pdf.reset_index()[['Date', 'Game_Number', player]]
@@ -233,6 +255,8 @@ class Plotter(object):
                 data=player_pdf.data,
             )
 
+
+
             ## Calc new y_axis range
             min_ = player_pdf.data.min()
             max_ = player_pdf.data.max()
@@ -249,6 +273,9 @@ class Plotter(object):
 
             ## Update line visibility
             if player in selected_players:
+                # store latest value for each player
+                display_data.append([player, player_pdf.data.iloc[-1]])
+
                 self.plot_objects[player]['circle'].visible = True
                 self.plot_objects[player]['line'].visible = True
             else:
@@ -261,26 +288,38 @@ class Plotter(object):
         # p.update(y_range=Range1d(start=data_min, end=data_max))
         # self.plot.y_range.bounds = (data_min, data_max)
 
+        display_data = pd.DataFrame(display_data, columns=['name', 'data']).sort_values('data', ascending=False)
+        display_data = display_data.to_dict('list')
+
+        table_source.data = display_data
+
 ## %%
 
 plotter = Plotter()
 plotter.load_csv()
 
-controls = [dataset_select, min_games_slider, combo_select]
-
 dataset_select.on_change('value', lambda attr, old, new: plotter.load_csv())
+
+controls = [min_games_slider, combo_select]
 for control in controls:
     control.on_change('value', lambda attr, old, new: plotter.update())
+
+controls = [dataset_select] + controls
 
 
 sizing_mode = 'fixed'  # 'scale_width' also looks nice with this example
 
-inputs = widgetbox(*controls, sizing_mode=sizing_mode)
+inputs = layout([
+    widgetbox(*controls, sizing_mode=sizing_mode),
+    data_table])
+
 l = layout([
     [],
     [inputs, plotter.plot]], sizing_mode=sizing_mode)
 
-plotter.update()  # initial load of the data
+# plotter.update()  # initial load of the data
+
+#  %break Plotter.update
 
 curdoc().add_root(l)
 curdoc().title = "Stats"
