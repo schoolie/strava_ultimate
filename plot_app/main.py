@@ -205,7 +205,6 @@ class Plotter(object):
 
         ## update slider (triggers callback for update())
         min_games_slider.end = max_games
-        print('break')
         if csv_name != 'All Time.csv':
             min_games_slider.value = int((max_games / 2))
         else:
@@ -316,6 +315,10 @@ class Plotter(object):
 plotter = Plotter()
 plotter.load_csv()
 
+dir(plotter.plot)
+dir(plotter.plot.legend)
+
+
 dataset_select.on_change('value', lambda attr, old, new: plotter.load_csv())
 
 controls = [min_games_slider, combo_select]
@@ -335,7 +338,7 @@ l = layout([
     [],
     [inputs, plotter.plot]], sizing_mode=sizing_mode)
 
-# plotter.update()  # initial load of the data
+plotter.update()  # initial load of the data
 
 #  %break Plotter.update
 
