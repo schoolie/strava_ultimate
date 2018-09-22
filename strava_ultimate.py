@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 import os
-
+import itertools
 from datetime import datetime, timedelta, date
 
 
@@ -112,48 +112,52 @@ def process_events(events):
     return games
 
 class Handler(object):
-    def __init__(self):
-        #### Setting up strava API client
-        ## Read Strava secret file
+    def __init__(self, load_strava=True):
 
-        strava_client = stravalib.client.Client()
+        if load_strava:
+            #### Setting up strava API client
+            ## Read Strava secret file
 
-        ## check if strava auth code has been stored yet
-        if not os.path.exists('strava_secrets.json'):
-            print('No Strava credentials stored')
+            strava_client = stravalib.client.Client()
 
-            host_url = os.environ['HOST_URL']
+            ## check if strava auth code has been stored yet
+            if not os.path.exists('strava_secrets.json'):
+                print('No Strava credentials stored')
 
-            authorize_url = strava_client.authorization_url(
-                client_id=19435,
-                redirect_uri='{}/strava_auth'.format(host_url)
-            )
+                host_url = os.environ['HOST_URL']
 
-            self.strava_auth_url = authorize_url
+                authorize_url = strava_client.authorization_url(
+                    client_id=19435,
+                    redirect_uri='{}/strava_auth'.format(host_url)
+                )
 
-            return
+                self.strava_auth_url = authorize_url
+
+                return
 
 
-        with open('strava_secrets.json') as json_data:
-            strava_secrets = json.load(json_data)
+            with open('strava_secrets.json') as json_data:
+                strava_secrets = json.load(json_data)
 
-        ## Enable accessing private activities
-        code = strava_secrets['auth_code']
-        access_token = strava_client.exchange_code_for_token(client_id=19435, client_secret=os.environ['STRAVA_CLIENT_SECRET'], code=code)
-        strava_client = stravalib.client.Client(access_token=access_token)
-        athlete = strava_client.get_athlete()
-        # print('athlete name %s, athlete id %s.' %(athlete.firstname, athlete.id
+            ## Enable accessing private activities
+            code = strava_secrets['auth_code']
+            access_token = strava_client.exchange_code_for_token(client_id=19435, client_secret=os.environ['STRAVA_CLIENT_SECRET'], code=code)
+            strava_client = stravalib.client.Client(access_token=access_token)
+            athlete = strava_client.get_athlete()
+            # print('athlete name %s, athlete id %s.' %(athlete.firstname, athlete.id
+
+            self.athlete = athlete
+            self.strava_client = strava_client
 
         ## Set up google sheets client, open worksheet
 
         # - Opens browser window, produces sheets.googleapis.com-python.json ... need to figure out how to productionize?
-        gc = pygsheets.authorize(outh_file='gsheet_secret.json', no_cache=True, outh_nonlocal=True)
+        gc = pygsheets.authorize(outh_file='gsheet_secret.json', no_cache=False, outh_nonlocal=True)
 
         # Open spreadsheet and then workseet
         wkb = gc.open('Milburn Ultimate Scores')
 
-        self.athlete = athlete
-        self.strava_client = strava_client
+
         self.wkb = wkb
 
     def get_raw_points(self, start_date):
@@ -399,10 +403,385 @@ class Handler(object):
         else:
             return 0
 
+    def read_scoreboard(self):
+
+        ## Get date column from summary sheet
+        game_sheet = self.wkb.worksheet_by_title('game_summaries')
+        dates = game_sheet.get_col(1)
+        headings = game_sheet.get_row(2)
+
+        dates_recorded = [datetime.strptime(d, '%Y-%m-%d') for d in dates if d != '' and d != 'Date']
+
+        for n, d in enumerate(dates_recorded):
+            if d > datetime(year=2017, month=12, day=21):
+                last_row = n + 2 + 1
+        last_row
+
+        for n, h in enumerate(headings):
+            if len(h) > 0:
+                try:
+                    int(h)  ## Skip number columns at right
+                except ValueError:
+                    last_col = n + 1
+        last_col
+
+        # get all game values
+        columns = game_sheet.get_values((2, 1), (2, last_col))[0]
+        all_values  = game_sheet.get_values((3, 1), (last_row, last_col))
+
+        clean_columns = []
+        for c in columns:
+            clean_columns.append(c.replace(' ', '_').replace('(', '_').replace(')', '_'))
+
+        player_names = clean_columns[7:]
+
+        df = pd.DataFrame(all_values, columns=clean_columns)
+
+        df = df.set_index(['Date', 'Game_Number', 'Team']).unstack('Team')
+        df['Wins', 'white'] = df.White_Wins.white
+        df['Wins', 'color'] = df.Color_Wins.color
+        df = df.drop(['White_Wins', 'Color_Wins'], axis=1)
+        df = df.sort_index(ascending=False)
+        df = df.stack('Team')
+
+        # Count players on each team
+        player_counts = (df[player_names] != "").sum(axis=1).unstack('Team').sort_index(ascending=False)
+        df['player_count'] = player_counts.stack('Team')
+
+        ## Create boolean column for wins
+        tdf = df.unstack('Team')
+        tdf.loc[:,('Game_Won', 'color')] = tdf['Winner']['color'] == 'Color'
+        tdf.loc[:,('Game_Won', 'white')] = tdf['Winner']['white'] == 'White'
+
+        # Create numerical win tracking
+        tdf.loc[:,('Win_Value_Multiplier', 'color')] = 1
+        tdf.loc[:,('Win_Value_Multiplier', 'white')] = 1
+
+        tdf.loc[tdf.Team_Score.max(axis=1) < 5, 'Win_Value_Multiplier'] = 0.6
+
+
+        df = tdf.stack('Team')
+        df['Win_Value'] = df.Game_Won.astype(int) * df.Win_Value_Multiplier
+
+
+        temp = (df[player_names] != '') * 1
+
+        temp_df = df.copy()
+        temp_df[player_names] = temp[player_names]
+        pdf = temp_df[player_names + ['Game_Won', 'Win_Value']].astype(float).groupby(['Date', 'Team']).sum()
+
+        match_df = pdf.unstack('Team')
+
+        match_df.loc[:,('Match_Won_Weighted', 'color')] = match_df['Win_Value']['color'] > match_df['Win_Value']['white']
+        match_df.loc[:,('Match_Won_Weighted', 'white')] = match_df['Win_Value']['white'] > match_df['Win_Value']['color']
+
+        match_df.loc[:,('Match_Tied_Weighted', 'color')] = match_df['Win_Value']['color'] == match_df['Win_Value']['white']
+        match_df.loc[:,('Match_Tied_Weighted', 'white')] = match_df['Win_Value']['white'] == match_df['Win_Value']['color']
+
+        match_df.loc[:,('Match_Won', 'color')] = match_df['Win_Value']['color'] > match_df['Win_Value']['white']
+        match_df.loc[:,('Match_Won', 'white')] = match_df['Win_Value']['white'] > match_df['Win_Value']['color']
+
+        match_df.loc[:,('Match_Tied', 'color')] = match_df['Win_Value']['color'] == match_df['Win_Value']['white']
+        match_df.loc[:,('Match_Tied', 'white')] = match_df['Win_Value']['white'] == match_df['Win_Value']['color']
+
+        match_df = match_df.stack('Team') ### numerical wins tallied
+
+        return df, match_df, player_names
+
+    def get_player_scoreboards(self, game_scoreboard, match_scoreboard, name):
+
+        filt_index = game_scoreboard[game_scoreboard[name] != ''].index
+
+        ### create game_scoreboard of games played by player
+        new_index = filt_index
+
+        # create new team labels that include both teams
+        team_labels = [0,1] * int(new_index.labels[0].shape[0])
+
+        new_labels = []
+        # duplicate date and game_num labels to match new team labels
+        for n in range(2):
+            temp = new_index.labels[n]
+            new = []
+            for t in temp:
+                new.append(t)
+                new.append(t)
+
+            new_labels.append(new)
+
+        new_labels.append(team_labels)
+
+        new_index = pd.MultiIndex(levels=new_index.levels, labels=new_labels, names=new_index.names)
+
+
+        ### create df of matches played by player
+        new_match_index = filt_index
+
+        # create new team labels that include both teams
+
+        new_match_labels = [[], []]
+        # duplicate date and game_num labels to match new team labels
+        for date, game_num, team in zip(*new_index.labels):
+            if game_num == 0:
+                new_match_labels[0].append(date)
+                new_match_labels[1].append(team)
+
+        new_match_index = pd.MultiIndex(
+            levels=[filt_index.levels[0], filt_index.levels[2]],
+            labels=new_match_labels,
+            names=[filt_index.names[0], filt_index.names[2]],)
+
+
+        player_df = game_scoreboard.reindex(index=new_index)
+        player_match_df = match_scoreboard.reindex(index=new_match_index)
+
+        return player_df, player_match_df
+
+    def summary_stats(self, start_date=None, end_date=None, write_to_google=True, csv_name='All Time.csv'):
+
+        # Get data from drive, format
+        game_scoreboard, match_scoreboard, player_names = self.read_scoreboard()
+
+        if start_date is not None:
+            game_scoreboard = game_scoreboard.loc[start_date:, :]
+        if end_date is not None:
+            game_scoreboard = game_scoreboard.loc[:end_date, :]
+
+        if game_scoreboard.shape[0] > 0:  ## if the season just started, there won't be any data
+
+            player_stats = {}
+            plot_data = {}
+
+            columns = ['White_Team', 'Color_Team'] + list(game_scoreboard.columns)
+            game_scoreboard['White_Team'] = ''
+            game_scoreboard['Color_Team'] = ''
+            game_scoreboard = game_scoreboard[columns]
+            game_scoreboard.loc[(slice(None), slice(None), ['white']), 'White_Team'] = 'x'
+            game_scoreboard.loc[(slice(None), slice(None), ['color']), 'Color_Team'] = 'x'
+
+            game_scoreboard.head()
+
+            for name in ['White_Team', 'Color_Team'] + player_names:
+
+                player_game_scoreboard, player_match_scoreboard = self.get_player_scoreboards(game_scoreboard, match_scoreboard, name)
+
+                games_played = (player_game_scoreboard[name] != '').sum()
+
+                if games_played > 0:
+
+                    games_won = np.all([player_game_scoreboard[name] != '', player_game_scoreboard['Game_Won']], axis=0).sum()
+                    games_lost = np.all([player_game_scoreboard[name] != '', ~player_game_scoreboard['Game_Won']], axis=0).sum()
+                    win_pct = games_won / games_played * 100
+
+                    games_color = (player_game_scoreboard.xs('color', level=2)[name] != '').sum()
+                    games_white = (player_game_scoreboard.xs('white', level=2)[name] != '').sum()
+                    pct_color = games_color / games_played * 100
+                    pct_white = games_white / games_played * 100
+
+                    team_score_for = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] != ''].astype(int).sum()
+                    team_score_against = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] == ''].astype(int).sum()
+
+
+
+                    ## Calc scores for and against
+                    team_score_for = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] != ''].astype(int).sum()
+                    team_score_against = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] == ''].astype(int).sum()
+                    team_plus_minus = team_score_for - team_score_against
+
+                    if player_match_scoreboard.shape[0] > 0 and name not in ['White_Team', 'Color_Team']:  # make sure player has played at least one complete match
+
+                        ## Calc total matches played
+                        player_match_wins = player_match_scoreboard[[name, 'Match_Won', 'Match_Won_Weighted', 'Match_Tied', 'Match_Tied_Weighted']].unstack('Team')
+                        consistent_team = ~np.all(player_match_wins[name] != 0, axis=1)
+
+                        color_matches_won = np.all([player_match_wins[name]['color'] != 0, player_match_wins['Match_Won']['color'], consistent_team], axis=0).sum()
+                        white_matches_won = np.all([player_match_wins[name]['white'] != 0, player_match_wins['Match_Won']['white'], consistent_team], axis=0).sum()
+                        total_matches_won = color_matches_won + white_matches_won
+
+                        color_matches_tied = np.all([player_match_wins[name]['color'] != 0, player_match_wins['Match_Tied']['color'], consistent_team], axis=0).sum()
+                        white_matches_tied = np.all([player_match_wins[name]['white'] != 0, player_match_wins['Match_Tied']['white'], consistent_team], axis=0).sum()
+                        total_matches_tied = color_matches_tied + white_matches_tied
+
+                        days_played = consistent_team.shape[0]
+                        matches_played = consistent_team.sum()
+
+                        total_matches_lost = matches_played - total_matches_won - total_matches_tied
+
+                        match_win_percent = total_matches_won / matches_played * 100
+
+                    else:
+                        days_played = 0
+                        matches_played = 0
+                        total_matches_won = 0
+                        total_matches_lost = 0
+                        total_matches_tied = 0
+                        match_win_percent = 0
+
+                    player_stats[name] = [
+                        games_played,
+                        games_won,
+                        games_lost,
+                        win_pct,
+                        games_color,
+                        games_white,
+                        pct_color,
+                        pct_white,
+                        team_score_for,
+                        team_score_against,
+                        team_plus_minus,
+                        days_played,
+                        matches_played,
+                        total_matches_won,
+                        total_matches_tied,
+                        total_matches_lost,
+                        match_win_percent,]
+
+                    # game_count = player_game_scoreboard.reset_index().set_index(['Date', 'Team'])[['Game_Number']].groupby('Date').max()
+                    # game_count['Game_Count'] = game_count.Game_Number.astype(int) + 1
+                    # game_count
+                    numerical = player_game_scoreboard[['Team_Score','Game_Won','Win_Value']]
+
+                    numerical_team = numerical[player_game_scoreboard[name] != ''].astype(float).reset_index('Team').drop('Team', axis=1)
+                    numerical_opponent = numerical[player_game_scoreboard[name] == ''].astype(float).reset_index('Team').drop('Team', axis=1)
+
+                    numerical_team['Players_Team'] = 1
+                    numerical_team['Game_Played'] = 1
+                    numerical_opponent['Players_Team'] = 0
+                    numerical_opponent['Game_Played'] = 0
+
+                    player_numerical = pd.concat([numerical_team, numerical_opponent]).set_index('Players_Team', append=True).sort_index()
+
+                    def cummean(data):
+                        return np.cumsum(data) / np.cumsum(np.ones(data.shape))
+
+                    def passthrough(data):
+                        return data
+
+                    def rollingmean(data):
+                        data = for_data
+                        temp = data.reset_index('Game_Number') ## get date index without game number
+                        out = data.groupby('Date').mean().rolling(6).mean().reindex(temp.index) # groupby date, rolling average, expand to match dates from original
+                        out = pd.DataFrame(out)  # convert from pd.Series
+
+                        out['Game_Number'] = temp.Game_Number   ## add Game_Number info back to df
+                        out = out.set_index('Game_Number', append=True)  ## set index back to original
+
+                        return out.iloc[:,0]   ## return as pd.Series
+
+                    def rollingsum(data):
+
+                        temp = data.reset_index('Game_Number') ## get date index without game number
+                        out = data.groupby('Date').sum().rolling(6).sum().reindex(temp.index) # groupby date, rolling average, expand to match dates from original
+                        out = pd.DataFrame(out)  # convert from pd.Series
+
+                        out['Game_Number'] = temp.Game_Number   ## add Game_Number info back to df
+                        out = out.set_index('Game_Number', append=True)  ## set index back to original
+
+                        return out.iloc[:,0]   ## return as pd.Series
+
+                    data_stats = {}
+                    for data_field in ['Team_Score', 'Game_Played', 'Game_Won', 'Win_Value']:
+
+                        for_data = player_numerical[data_field].xs(1, level='Players_Team')
+                        against_data = player_numerical[data_field].xs(0, level='Players_Team')
+                        delta_data = for_data - against_data
+
+                        for_stats = {}
+                        against_stats = {}
+                        delta_stats = {}
+
+                        for stat, func in zip(
+                            ['Sum', 'Avg', 'Raw', 'Rolling_Avg', 'Rolling_Sum'],
+                            [np.cumsum, cummean, passthrough, rollingmean, rollingsum]):
+
+                            for_stats[stat] = func(for_data)
+                            against_stats[stat] = func(against_data)
+                            delta_stats[stat] = func(delta_data)
+
+                        data_stats[data_field] = dict(Delta=delta_stats, For=for_stats, Against=against_stats)
+
+                    plot_data[name] = data_stats
+
+            ### Format and write data for bokeh app
+            reformed_plot_data = {}
+            for name, data_stats in plot_data.items():
+                for data_field, calc_data in data_stats.items():
+                    for data_type, stats in calc_data.items():
+                        for stat, data in stats.items():
+                            reformed_plot_data[(name, data_field, data_type, stat)] = data
+
+            plot_data_df = pd.DataFrame(reformed_plot_data)
+            plot_data_df.columns.names = ['name', 'data_field', 'data_type', 'stat']
+
+            ### Write to csv for bokeh app
+            plot_data_df.stack(['data_field', 'data_type', 'stat']).to_csv(os.path.join('plot_app', csv_name))
+
+            param_names = [
+                'Games Played',
+                'Games Won',
+                'Games Lost',
+                'Win Percent',
+                'Games Color',
+                'Games White',
+                'Percent Color',
+                'Percent White',
+                'Score For',
+                'Score Against',
+                'Score +/-',
+                'Days Played',
+                'Matches Played',
+                'Matches Won',
+                'Matches Tied',
+                'Matches Lost',
+                'Match Win %']
+
+            stats_df = pd.DataFrame(player_stats, index=param_names)
+
+            updated_player_names = []
+            for c in player_names:
+                if c in stats_df.columns:
+                    updated_player_names.append(c)
+
+            player_names = updated_player_names
+
+            stats_df = stats_df[['White_Team', 'Color_Team'] + player_names]
+            stats_df = stats_df.T.sort_values('Games Played', ascending=False)
+
+            ## Replace losers with blanks :)
+            blank = ''
+            stats_df.loc[stats_df['Win Percent'] < 50, 'Win Percent'] = blank
+            stats_df.loc[stats_df['Match Win %'] < 50, 'Match Win %'] = blank
+            stats_df.loc[stats_df['Score +/-'] < 0, 'Score +/-'] = blank
+
+            if write_to_google:
+                ## Write data to spreadsheet
+                wks = self.wkb.worksheet_by_title('summary_stats')
+                wks.update_cells('B3', [[x] for x in stats_df.index.tolist()])
+                wks.update_cells('C3', stats_df.as_matrix().tolist())
+                wks.update_cells('C2', [stats_df.columns.tolist()])
+
+        return
+
+
+        ## Replace losers with blanks :)
+        blank = ''
+        stats_df.loc[stats_df['Win Percent'] < 50, 'Win Percent'] = blank
+        stats_df.loc[stats_df['Match Win %'] < 50, 'Match Win %'] = blank
+        stats_df.loc[stats_df['Score +/-'] < 0, 'Score +/-'] = blank
+
+        if write_to_google:
+            ## Write data to spreadsheet
+            wks = self.wkb.worksheet_by_title('summary_stats')
+            wks.update_cells('B3', [[x] for x in stats_df.index.tolist()])
+            wks.update_cells('C3', stats_df.as_matrix().tolist())
+            wks.update_cells('C2', [stats_df.columns.tolist()])
+
+
 ## %%
 
-app = Flask(__name__)
+### Define Flask app and routes
 
+app = Flask(__name__)
 
 @app.route('/strava_auth')
 def store_strava_credentials():
@@ -443,15 +822,41 @@ def raw_to_summary(debug_days=0):
 
     return '{} games found'.format(games)
 
-## debug sandbox
-if False:
-    handler = Handler()
-    handler.strava_to_gsheet(3)
+@app.route('/summary_stats')
+def summary_stats():
 
-    # %break Handler.raw_to_summary
-    processed_raw_points, gdf, games, pdf, score_df, out_df, total_wins_out, out_data = handler.raw_to_summary(3, write_out=True)
+    handler = Handler(load_strava=False)
 
+    seasons = [
+        (True, 'All Time', None, None),
+        (False, 'Spring 2018', '2018-03-20', '2018-06-20'),
+        (False, 'Summer 2018', '2018-06-21', '2018-09-22'),
+        (False, 'Fall 2018', '2018-09-22', '2018-12-21'),
+        (False, 'Winter 2019', '2018-12-21', '2019-03-20'),
+        (False, 'Spring 2019', '2019-03-20', '2019-06-21'),
+    ]
 
+    for write, name, start, end in seasons:
+
+        if end is not None:
+            year, month, day = [int(c) for c in end.split('-')]
+            end_date = datetime(year=year, month=month, day=day)
+
+            # year, month, day = [int(c) for c in end.split('-')]
+            # end_date = datetime(year=year, month=month, day=day)
+        else:
+            end_date = datetime.today() ## next check is always True for All Time stats
+
+        if end_date > datetime.today() - timedelta(days=2):
+            print(name)
+            games = handler.summary_stats(
+                write_to_google=write,
+                csv_name='{}.csv'.format(name),
+                start_date=start,
+                end_date=end
+            )
+
+    return 'summaries calculated'
 
 if __name__ == "__main__":
     fire.Fire(Handler)

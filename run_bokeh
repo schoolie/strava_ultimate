@@ -1,0 +1,2 @@
+source activate strava_prod
+bokeh serve --allow-websocket-origin=brianschoolcraft.com:5006 plot_app
