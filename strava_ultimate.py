@@ -547,204 +547,221 @@ class Handler(object):
         if end_date is not None:
             game_scoreboard = game_scoreboard.loc[:end_date, :]
 
+        if game_scoreboard.shape[0] > 0:  ## if the season just started, there won't be any data
 
-        player_stats = {}
-        plot_data = {}
+            player_stats = {}
+            plot_data = {}
 
-        columns = ['White_Team', 'Color_Team'] + list(game_scoreboard.columns)
-        game_scoreboard['White_Team'] = ''
-        game_scoreboard['Color_Team'] = ''
-        game_scoreboard = game_scoreboard[columns]
-        game_scoreboard.loc[(slice(None), slice(None), ['white']), 'White_Team'] = 'x'
-        game_scoreboard.loc[(slice(None), slice(None), ['color']), 'Color_Team'] = 'x'
+            columns = ['White_Team', 'Color_Team'] + list(game_scoreboard.columns)
+            game_scoreboard['White_Team'] = ''
+            game_scoreboard['Color_Team'] = ''
+            game_scoreboard = game_scoreboard[columns]
+            game_scoreboard.loc[(slice(None), slice(None), ['white']), 'White_Team'] = 'x'
+            game_scoreboard.loc[(slice(None), slice(None), ['color']), 'Color_Team'] = 'x'
 
-        game_scoreboard.head()
+            game_scoreboard.head()
 
-        for name in ['White_Team', 'Color_Team'] + player_names:
+            for name in ['White_Team', 'Color_Team'] + player_names:
 
-            player_game_scoreboard, player_match_scoreboard = self.get_player_scoreboards(game_scoreboard, match_scoreboard, name)
+                player_game_scoreboard, player_match_scoreboard = self.get_player_scoreboards(game_scoreboard, match_scoreboard, name)
 
-            games_played = (player_game_scoreboard[name] != '').sum()
+                games_played = (player_game_scoreboard[name] != '').sum()
 
-            if games_played > 0:
+                if games_played > 0:
 
-                games_won = np.all([player_game_scoreboard[name] != '', player_game_scoreboard['Game_Won']], axis=0).sum()
-                games_lost = np.all([player_game_scoreboard[name] != '', ~player_game_scoreboard['Game_Won']], axis=0).sum()
-                win_pct = games_won / games_played * 100
+                    games_won = np.all([player_game_scoreboard[name] != '', player_game_scoreboard['Game_Won']], axis=0).sum()
+                    games_lost = np.all([player_game_scoreboard[name] != '', ~player_game_scoreboard['Game_Won']], axis=0).sum()
+                    win_pct = games_won / games_played * 100
 
-                games_color = (player_game_scoreboard.xs('color', level=2)[name] != '').sum()
-                games_white = (player_game_scoreboard.xs('white', level=2)[name] != '').sum()
-                pct_color = games_color / games_played * 100
-                pct_white = games_white / games_played * 100
+                    games_color = (player_game_scoreboard.xs('color', level=2)[name] != '').sum()
+                    games_white = (player_game_scoreboard.xs('white', level=2)[name] != '').sum()
+                    pct_color = games_color / games_played * 100
+                    pct_white = games_white / games_played * 100
 
-                team_score_for = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] != ''].astype(int).sum()
-                team_score_against = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] == ''].astype(int).sum()
+                    team_score_for = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] != ''].astype(int).sum()
+                    team_score_against = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] == ''].astype(int).sum()
 
 
 
-                ## Calc scores for and against
-                team_score_for = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] != ''].astype(int).sum()
-                team_score_against = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] == ''].astype(int).sum()
-                team_plus_minus = team_score_for - team_score_against
+                    ## Calc scores for and against
+                    team_score_for = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] != ''].astype(int).sum()
+                    team_score_against = player_game_scoreboard['Team_Score'][player_game_scoreboard[name] == ''].astype(int).sum()
+                    team_plus_minus = team_score_for - team_score_against
 
-                if player_match_scoreboard.shape[0] > 0 and name not in ['White_Team', 'Color_Team']:  # make sure player has played at least one complete match
+                    if player_match_scoreboard.shape[0] > 0 and name not in ['White_Team', 'Color_Team']:  # make sure player has played at least one complete match
 
-                    ## Calc total matches played
-                    player_match_wins = player_match_scoreboard[[name, 'Match_Won', 'Match_Won_Weighted', 'Match_Tied', 'Match_Tied_Weighted']].unstack('Team')
-                    consistent_team = ~np.all(player_match_wins[name] != 0, axis=1)
+                        ## Calc total matches played
+                        player_match_wins = player_match_scoreboard[[name, 'Match_Won', 'Match_Won_Weighted', 'Match_Tied', 'Match_Tied_Weighted']].unstack('Team')
+                        consistent_team = ~np.all(player_match_wins[name] != 0, axis=1)
 
-                    color_matches_won = np.all([player_match_wins[name]['color'] != 0, player_match_wins['Match_Won']['color'], consistent_team], axis=0).sum()
-                    white_matches_won = np.all([player_match_wins[name]['white'] != 0, player_match_wins['Match_Won']['white'], consistent_team], axis=0).sum()
-                    total_matches_won = color_matches_won + white_matches_won
+                        color_matches_won = np.all([player_match_wins[name]['color'] != 0, player_match_wins['Match_Won']['color'], consistent_team], axis=0).sum()
+                        white_matches_won = np.all([player_match_wins[name]['white'] != 0, player_match_wins['Match_Won']['white'], consistent_team], axis=0).sum()
+                        total_matches_won = color_matches_won + white_matches_won
 
-                    color_matches_tied = np.all([player_match_wins[name]['color'] != 0, player_match_wins['Match_Tied']['color'], consistent_team], axis=0).sum()
-                    white_matches_tied = np.all([player_match_wins[name]['white'] != 0, player_match_wins['Match_Tied']['white'], consistent_team], axis=0).sum()
-                    total_matches_tied = color_matches_tied + white_matches_tied
+                        color_matches_tied = np.all([player_match_wins[name]['color'] != 0, player_match_wins['Match_Tied']['color'], consistent_team], axis=0).sum()
+                        white_matches_tied = np.all([player_match_wins[name]['white'] != 0, player_match_wins['Match_Tied']['white'], consistent_team], axis=0).sum()
+                        total_matches_tied = color_matches_tied + white_matches_tied
 
-                    days_played = consistent_team.shape[0]
-                    matches_played = consistent_team.sum()
+                        days_played = consistent_team.shape[0]
+                        matches_played = consistent_team.sum()
 
-                    total_matches_lost = matches_played - total_matches_won - total_matches_tied
+                        total_matches_lost = matches_played - total_matches_won - total_matches_tied
 
-                    match_win_percent = total_matches_won / matches_played * 100
+                        match_win_percent = total_matches_won / matches_played * 100
 
-                else:
-                    days_played = 0
-                    matches_played = 0
-                    total_matches_won = 0
-                    total_matches_lost = 0
-                    total_matches_tied = 0
-                    match_win_percent = 0
+                    else:
+                        days_played = 0
+                        matches_played = 0
+                        total_matches_won = 0
+                        total_matches_lost = 0
+                        total_matches_tied = 0
+                        match_win_percent = 0
 
-                player_stats[name] = [
-                    games_played,
-                    games_won,
-                    games_lost,
-                    win_pct,
-                    games_color,
-                    games_white,
-                    pct_color,
-                    pct_white,
-                    team_score_for,
-                    team_score_against,
-                    team_plus_minus,
-                    days_played,
-                    matches_played,
-                    total_matches_won,
-                    total_matches_tied,
-                    total_matches_lost,
-                    match_win_percent,]
+                    player_stats[name] = [
+                        games_played,
+                        games_won,
+                        games_lost,
+                        win_pct,
+                        games_color,
+                        games_white,
+                        pct_color,
+                        pct_white,
+                        team_score_for,
+                        team_score_against,
+                        team_plus_minus,
+                        days_played,
+                        matches_played,
+                        total_matches_won,
+                        total_matches_tied,
+                        total_matches_lost,
+                        match_win_percent,]
 
-                # game_count = player_game_scoreboard.reset_index().set_index(['Date', 'Team'])[['Game_Number']].groupby('Date').max()
-                # game_count['Game_Count'] = game_count.Game_Number.astype(int) + 1
-                # game_count
-                numerical = player_game_scoreboard[['Team_Score','Game_Won','Win_Value']]
+                    # game_count = player_game_scoreboard.reset_index().set_index(['Date', 'Team'])[['Game_Number']].groupby('Date').max()
+                    # game_count['Game_Count'] = game_count.Game_Number.astype(int) + 1
+                    # game_count
+                    numerical = player_game_scoreboard[['Team_Score','Game_Won','Win_Value']]
 
-                numerical_team = numerical[player_game_scoreboard[name] != ''].astype(float).reset_index('Team').drop('Team', axis=1)
-                numerical_opponent = numerical[player_game_scoreboard[name] == ''].astype(float).reset_index('Team').drop('Team', axis=1)
+                    numerical_team = numerical[player_game_scoreboard[name] != ''].astype(float).reset_index('Team').drop('Team', axis=1)
+                    numerical_opponent = numerical[player_game_scoreboard[name] == ''].astype(float).reset_index('Team').drop('Team', axis=1)
 
-                numerical_team['Players_Team'] = 1
-                numerical_team['Game_Played'] = 1
-                numerical_opponent['Players_Team'] = 0
-                numerical_opponent['Game_Played'] = 0
+                    numerical_team['Players_Team'] = 1
+                    numerical_team['Game_Played'] = 1
+                    numerical_opponent['Players_Team'] = 0
+                    numerical_opponent['Game_Played'] = 0
 
-                player_numerical = pd.concat([numerical_team, numerical_opponent]).set_index('Players_Team', append=True).sort_index()
+                    player_numerical = pd.concat([numerical_team, numerical_opponent]).set_index('Players_Team', append=True).sort_index()
 
-                def cummean(data):
-                    return np.cumsum(data) / np.cumsum(np.ones(data.shape))
+                    def cummean(data):
+                        return np.cumsum(data) / np.cumsum(np.ones(data.shape))
 
-                def passthrough(data):
-                    return data
+                    def passthrough(data):
+                        return data
 
-                def rollingmean(data):
-                    data = for_data
-                    temp = data.reset_index('Game_Number') ## get date index without game number
-                    out = data.groupby('Date').mean().rolling(6).mean().reindex(temp.index) # groupby date, rolling average, expand to match dates from original
-                    out = pd.DataFrame(out)  # convert from pd.Series
+                    def rollingmean(data):
+                        data = for_data
+                        temp = data.reset_index('Game_Number') ## get date index without game number
+                        out = data.groupby('Date').mean().rolling(6).mean().reindex(temp.index) # groupby date, rolling average, expand to match dates from original
+                        out = pd.DataFrame(out)  # convert from pd.Series
 
-                    out['Game_Number'] = temp.Game_Number   ## add Game_Number info back to df
-                    out = out.set_index('Game_Number', append=True)  ## set index back to original
+                        out['Game_Number'] = temp.Game_Number   ## add Game_Number info back to df
+                        out = out.set_index('Game_Number', append=True)  ## set index back to original
 
-                    return out.iloc[:,0]   ## return as pd.Series
+                        return out.iloc[:,0]   ## return as pd.Series
 
-                def rollingsum(data):
+                    def rollingsum(data):
 
-                    temp = data.reset_index('Game_Number') ## get date index without game number
-                    out = data.groupby('Date').sum().rolling(6).sum().reindex(temp.index) # groupby date, rolling average, expand to match dates from original
-                    out = pd.DataFrame(out)  # convert from pd.Series
+                        temp = data.reset_index('Game_Number') ## get date index without game number
+                        out = data.groupby('Date').sum().rolling(6).sum().reindex(temp.index) # groupby date, rolling average, expand to match dates from original
+                        out = pd.DataFrame(out)  # convert from pd.Series
 
-                    out['Game_Number'] = temp.Game_Number   ## add Game_Number info back to df
-                    out = out.set_index('Game_Number', append=True)  ## set index back to original
+                        out['Game_Number'] = temp.Game_Number   ## add Game_Number info back to df
+                        out = out.set_index('Game_Number', append=True)  ## set index back to original
 
-                    return out.iloc[:,0]   ## return as pd.Series
+                        return out.iloc[:,0]   ## return as pd.Series
 
-                data_stats = {}
-                for data_field in ['Team_Score', 'Game_Played', 'Game_Won', 'Win_Value']:
+                    data_stats = {}
+                    for data_field in ['Team_Score', 'Game_Played', 'Game_Won', 'Win_Value']:
 
-                    for_data = player_numerical[data_field].xs(1, level='Players_Team')
-                    against_data = player_numerical[data_field].xs(0, level='Players_Team')
-                    delta_data = for_data - against_data
+                        for_data = player_numerical[data_field].xs(1, level='Players_Team')
+                        against_data = player_numerical[data_field].xs(0, level='Players_Team')
+                        delta_data = for_data - against_data
 
-                    for_stats = {}
-                    against_stats = {}
-                    delta_stats = {}
+                        for_stats = {}
+                        against_stats = {}
+                        delta_stats = {}
 
-                    for stat, func in zip(
-                        ['Sum', 'Avg', 'Raw', 'Rolling_Avg', 'Rolling_Sum'],
-                        [np.cumsum, cummean, passthrough, rollingmean, rollingsum]):
+                        for stat, func in zip(
+                            ['Sum', 'Avg', 'Raw', 'Rolling_Avg', 'Rolling_Sum'],
+                            [np.cumsum, cummean, passthrough, rollingmean, rollingsum]):
 
-                        for_stats[stat] = func(for_data)
-                        against_stats[stat] = func(against_data)
-                        delta_stats[stat] = func(delta_data)
+                            for_stats[stat] = func(for_data)
+                            against_stats[stat] = func(against_data)
+                            delta_stats[stat] = func(delta_data)
 
-                    data_stats[data_field] = dict(Delta=delta_stats, For=for_stats, Against=against_stats)
+                        data_stats[data_field] = dict(Delta=delta_stats, For=for_stats, Against=against_stats)
 
-                plot_data[name] = data_stats
+                    plot_data[name] = data_stats
 
-        ### Format and write data for bokeh app
-        reformed_plot_data = {}
-        for name, data_stats in plot_data.items():
-            for data_field, calc_data in data_stats.items():
-                for data_type, stats in calc_data.items():
-                    for stat, data in stats.items():
-                        reformed_plot_data[(name, data_field, data_type, stat)] = data
+            ### Format and write data for bokeh app
+            reformed_plot_data = {}
+            for name, data_stats in plot_data.items():
+                for data_field, calc_data in data_stats.items():
+                    for data_type, stats in calc_data.items():
+                        for stat, data in stats.items():
+                            reformed_plot_data[(name, data_field, data_type, stat)] = data
 
-        plot_data_df = pd.DataFrame(reformed_plot_data)
-        plot_data_df.columns.names = ['name', 'data_field', 'data_type', 'stat']
+            plot_data_df = pd.DataFrame(reformed_plot_data)
+            plot_data_df.columns.names = ['name', 'data_field', 'data_type', 'stat']
 
-        ### Write to csv for bokeh app
-        plot_data_df.stack(['data_field', 'data_type', 'stat']).to_csv(os.path.join('plot_app', csv_name))
+            ### Write to csv for bokeh app
+            plot_data_df.stack(['data_field', 'data_type', 'stat']).to_csv(os.path.join('plot_app', csv_name))
 
-        param_names = [
-            'Games Played',
-            'Games Won',
-            'Games Lost',
-            'Win Percent',
-            'Games Color',
-            'Games White',
-            'Percent Color',
-            'Percent White',
-            'Score For',
-            'Score Against',
-            'Score +/-',
-            'Days Played',
-            'Matches Played',
-            'Matches Won',
-            'Matches Tied',
-            'Matches Lost',
-            'Match Win %']
+            param_names = [
+                'Games Played',
+                'Games Won',
+                'Games Lost',
+                'Win Percent',
+                'Games Color',
+                'Games White',
+                'Percent Color',
+                'Percent White',
+                'Score For',
+                'Score Against',
+                'Score +/-',
+                'Days Played',
+                'Matches Played',
+                'Matches Won',
+                'Matches Tied',
+                'Matches Lost',
+                'Match Win %']
 
-        stats_df = pd.DataFrame(player_stats, index=param_names)
+            stats_df = pd.DataFrame(player_stats, index=param_names)
 
-        updated_player_names = []
-        for c in player_names:
-            if c in stats_df.columns:
-                updated_player_names.append(c)
+            updated_player_names = []
+            for c in player_names:
+                if c in stats_df.columns:
+                    updated_player_names.append(c)
 
-        player_names = updated_player_names
+            player_names = updated_player_names
 
-        stats_df = stats_df[['White_Team', 'Color_Team'] + player_names]
-        stats_df = stats_df.T.sort_values('Games Played', ascending=False)
+            stats_df = stats_df[['White_Team', 'Color_Team'] + player_names]
+            stats_df = stats_df.T.sort_values('Games Played', ascending=False)
+
+            ## Replace losers with blanks :)
+            blank = ''
+            stats_df.loc[stats_df['Win Percent'] < 50, 'Win Percent'] = blank
+            stats_df.loc[stats_df['Match Win %'] < 50, 'Match Win %'] = blank
+            stats_df.loc[stats_df['Score +/-'] < 0, 'Score +/-'] = blank
+
+            if write_to_google:
+                ## Write data to spreadsheet
+                wks = self.wkb.worksheet_by_title('summary_stats')
+                wks.update_cells('B3', [[x] for x in stats_df.index.tolist()])
+                wks.update_cells('C3', stats_df.as_matrix().tolist())
+                wks.update_cells('C2', [stats_df.columns.tolist()])
+
+        return
+
 
         ## Replace losers with blanks :)
         blank = ''
@@ -814,15 +831,30 @@ def summary_stats():
         (True, 'All Time', None, None),
         (False, 'Spring 2018', '2018-03-20', '2018-06-20'),
         (False, 'Summer 2018', '2018-06-21', '2018-09-22'),
+        (False, 'Fall 2018', '2018-09-22', '2018-12-21'),
+        (False, 'Winter 2019', '2018-12-21', '2019-03-20'),
+        (False, 'Spring 2019', '2019-03-20', '2019-06-21'),
     ]
 
     for write, name, start, end in seasons:
-        games = handler.summary_stats(
-            write_to_google=write,
-            csv_name='{}.csv'.format(name),
-            start_date=start,
-            end_date=end
-        )
+
+        if end is not None:
+            year, month, day = [int(c) for c in end.split('-')]
+            end_date = datetime(year=year, month=month, day=day)
+
+            # year, month, day = [int(c) for c in end.split('-')]
+            # end_date = datetime(year=year, month=month, day=day)
+        else:
+            end_date = datetime.today() ## next check is always True for All Time stats
+
+        if end_date > datetime.today() - timedelta(days=2):
+            print(name)
+            games = handler.summary_stats(
+                write_to_google=write,
+                csv_name='{}.csv'.format(name),
+                start_date=start,
+                end_date=end
+            )
 
     return 'summaries calculated'
 
