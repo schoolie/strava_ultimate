@@ -88,9 +88,9 @@ class Plotter(object):
         self.plot.toolbar.active_scroll = wheel_zoom
         self.plot.toolbar.active_drag = pan_tool
 
-    def load_csv(self):
+    def load_csv(self, csv_name):
 
-        csv_name = dataset_select.value + '.csv'
+        # csv_name = dataset_select.value + '.csv'
         print('loading {}'.format(csv_name))
         self.df = pd.read_csv(os.path.join('plot_app', csv_name), index_col=[0,1,2,3,4])
 
@@ -255,11 +255,16 @@ class Plotter(object):
             player_pdf['date_fmt'] = player_pdf['date']
             player_pdf['date'] = player_pdf['date'].apply(lambda x: datetime.strptime(x, "%Y-%m-%d"))
 
+            import numpy as np
 
             ## only keep last game from day
-            last_game_levels = list(player_pdf.groupby('date').max().reset_index()[['date', 'game_number']].itertuples(index=False))
+            a = player_pdf.values
+            dates = np.unique(a[:, 0], return_counts=True)
+            last_game_levels = np.array([dates[0], dates[1] - 1]).T.tolist()
+
             last_game_names = ['date', 'game_number']
             last_game_index = pd.MultiIndex.from_tuples(last_game_levels, names=last_game_names)
+            
             player_pdf = player_pdf.set_index(['date', 'game_number']).reindex(last_game_index).reset_index()
 
             player_pdf['name'] = player
@@ -314,13 +319,13 @@ class Plotter(object):
 ## %%
 
 plotter = Plotter()
-plotter.load_csv()
+plotter.load_csv('All Time.csv')
 
 dir(plotter.plot)
 dir(plotter.plot.legend)
 
 
-dataset_select.on_change('value', lambda attr, old, new: plotter.load_csv())
+dataset_select.on_change('value', lambda attr, old, new: plotter.load_csv(new + '.csv'))
 
 controls = [min_games_slider, combo_select]
 for control in controls:
