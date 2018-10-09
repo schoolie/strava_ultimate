@@ -3,7 +3,7 @@ import numpy as np
 
 from bokeh.plotting import figure, show
 from bokeh.layouts import layout, widgetbox
-from bokeh.models import ColumnDataSource, Div, WheelZoomTool, PanTool, HoverTool, ResetTool
+from bokeh.models import ColumnDataSource, WheelZoomTool, PanTool, TapTool, HoverTool, ResetTool, Circle
 from bokeh.models.widgets import Slider, Select, TextInput, DataTable, TableColumn, NumberFormatter
 from bokeh.io import curdoc
 from bokeh.palettes import Category20
@@ -209,7 +209,8 @@ class StatPanel(object):
                 legend='{} '.format(name),
                 color=color,
                 hover_color=color,
-                size=5)
+                size=8)
+
 
             line = fig.line(
                 x='Date',
