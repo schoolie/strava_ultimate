@@ -16,6 +16,12 @@ from bokeh.models.widgets import Tabs
 import os
 import itertools
 
+
+## info on layout:
+## https://github.com/bokeh/bokeh/issues/7978
+
+
+
 ## Build widgets
 data_combos = {
     'Total Games Played':              (['Game_Played', 'For', 'Sum'], '0'),
@@ -168,12 +174,17 @@ class StatPanel(object):
         ## Build Figure
         colors = itertools.cycle(Category20[20])
 
-        fig = figure(plot_width=1200, plot_height=600, tools=tools, x_axis_type='datetime')
-
+        fig = figure(
+            # plot_width=1200,
+            plot_height=600,
+            tools=tools,
+            x_axis_type='datetime',
+            # sizing_mode='fixed',
+            sizing_mode='scale_width',
+        )
 
         fig.toolbar.active_scroll = wheel_zoom
         fig.toolbar.active_drag = pan_tool
-
 
         for name in self.player_names:
 
@@ -264,8 +275,11 @@ class StatPanel(object):
             fit_columns=True,
             sortable=True,
             index_position=None,
+            sizing_mode='scale_width',
+            # sizing_mode='fixed',
             width=250,
-            height=600)
+            # height=600,
+            )
 
         self.fig = fig
         self.data_table = data_table
@@ -295,15 +309,37 @@ for csv_name in csv_names:
 
 panels = []
 for panel_handler in panel_handlers:
-    panel = Panel(title=panel_handler.dataset_name,
-               child=Row(
-                    Column(panel_handler.combo_select, panel_handler.min_games_slider, panel_handler.data_table),
-                    Column(panel_handler.fig)
-               ))
+    # panel = Panel(sizing_mode='stretch_both',
+    #            title=panel_handler.dataset_name,
+    #            child=Row(
+    #                 Column(panel_handler.combo_select, panel_handler.min_games_slider, panel_handler.data_table),
+    #                 Column(panel_handler.fig)
+    #            ))
 
-    panels.append(panel)
+    name = '{}_table'.format(panel_handler.dataset_name.replace(' ', '_'))
+    print(name)
+    col1 = Column(
+        panel_handler.combo_select,
+        panel_handler.min_games_slider,
+        panel_handler.data_table,
+        name=name
+    )
 
-tabs = Tabs(tabs=panels)
+    name = '{}_figure'.format(panel_handler.dataset_name.replace(' ', '_'))
+    print(name)
+    col2 = Column(
+        panel_handler.fig,
+        name=name
+    )
 
-curdoc().add_root(tabs)
-curdoc().title = "Stats"
+    curdoc().add_root(col1)
+    curdoc().add_root(col2)
+
+
+
+    # panels.append(panel)
+
+# tabs = Tabs(tabs=panels)
+
+# curdoc().add_root(tabs)
+curdoc().title = "Milburn Ultimate Stats"
