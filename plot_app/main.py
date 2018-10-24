@@ -162,8 +162,13 @@ class StatPanel(object):
 
         for name, count in self.games_played.iteritems():
             try:
-                self.circle_renderers[name].visible = (count >= self.min_games_slider.value)
-                self.line_renderers[name].visible = (count >= self.min_games_slider.value)
+                if name in self.shown_players:
+                    self.circle_renderers[name].visible = (count >= self.min_games_slider.value)
+                    self.line_renderers[name].visible = (count >= self.min_games_slider.value)
+                else:                    
+                    self.circle_renderers[name].visible = False
+                    self.line_renderers[name].visible = False
+                    
             except KeyError:
                 print(name)
 
