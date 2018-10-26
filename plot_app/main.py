@@ -121,14 +121,16 @@ class StatPanel(object):
         data_df = data_df.reset_index()
 
         ## only keep last game from day
-        a = data_df.values
-        dates = np.unique(a[:, 0], return_counts=True)
-        last_game_levels = np.array([dates[0], dates[1] - 1]).T.tolist()
+        # a = data_df.values
+        # dates = np.unique(a[:, 0], return_counts=True)
+        # last_game_levels = np.array([dates[0], dates[1] - 1]).T.tolist()
+        #
+        # last_game_names = ['Date', 'Game_Number']
+        # last_game_index = pd.MultiIndex.from_tuples(last_game_levels, names=last_game_names)
+        #
+        # red_df = data_df.set_index(['Date', 'Game_Number']).reindex(last_game_index).reset_index()
 
-        last_game_names = ['Date', 'Game_Number']
-        last_game_index = pd.MultiIndex.from_tuples(last_game_levels, names=last_game_names)
-
-        red_df = data_df.set_index(['Date', 'Game_Number']).reindex(last_game_index).reset_index()
+        red_df = data_df.groupby('Date').last().reset_index()
         red_df['Date_String'] = red_df.Date
         red_df['Date'] = pd.to_datetime(red_df.Date)
 
