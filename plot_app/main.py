@@ -65,7 +65,7 @@ class StatPanel(object):
         player_names = list(games_played.index)
 
         combo_select = Select(title="Stat Type:", value='Win Percentage', options=list(data_combos.keys()))
-        min_games_slider = Slider(title="Min Games Played", start=0, end=max_games_played, value=min_games_played, step=5)
+        min_games_slider = Slider(title="Min Games Played", start=min_games_played, end=max_games_played, value=min_games_played, step=5)
 
         # controls = [min_games_slider, combo_select]
         # for control in controls:
