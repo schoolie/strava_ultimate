@@ -42,21 +42,28 @@
 {% endblock %}
 {% block contents %}
   <div class="container-fluid">
-    <!-- <div class="bigrow"> -->
 
-      {% for n in range(4) %}
-        <div class="bigrow">
-          <div class="col square">
-            {{ embed(roots|attr('table_{}'.format(n))) }}
+      <ul class="nav nav-tabs" id="myTab" role="tablist">
+        {% for n in range(4) %}
+          <li class="nav-item">
+            <a class="nav-link" id={{ 'tab_{}-tab'.format(n) }} data-toggle="tab" href={{'#tab_{}'.format(n)}} role="tab" aria-controls="home" aria-selected="true">Home</a>
+          </li>
+        {% endfor%}
+      </ul>
+      <div class="tab-content" id="myTabContent">
+        {% for n in range(4) %}
+          <div class="tab-pane fade" id={{ 'tab_{}'.format(n) }} role="tabpanel" aria-labelledby="home-tab">
+            <div class="bigrow">
+              <div class="col square">
+                {{ embed(roots|attr('table_{}'.format(n))) }}
+              </div>
+              <div class="col square">
+                {{ embed(roots|attr('figure_{}'.format(n))) }}
+              </div>
+            </div>
           </div>
-          <div class="col square">
-            {{ embed(roots|attr('figure_{}'.format(n))) }}
-          </div>
-        </div>
-      {% endfor %}
-
-
-    <!-- </div> {# bigrow #} -->
+        {% endfor %}
+      </div>
 
   </div> {# container-fluid #}
 {% endblock %}
