@@ -329,7 +329,7 @@ for csv_name in csv_names:
 
 
 panels = []
-for panel_handler in panel_handlers:
+for n, panel_handler in enumerate(panel_handlers):
     # panel = Panel(sizing_mode='stretch_both',
     #            title=panel_handler.dataset_name,
     #            child=Row(
@@ -337,24 +337,21 @@ for panel_handler in panel_handlers:
     #                 Column(panel_handler.fig)
     #            ))
 
-    name = '{}_table'.format(panel_handler.dataset_name.replace(' ', '_'))
+    name = 'table_{}'.format(n)
     print(name)
-    col1 = Column(
+    col = Column(
         panel_handler.combo_select,
         panel_handler.min_games_slider,
         panel_handler.data_table,
-        name=name
+        name=name,
     )
 
-    name = '{}_figure'.format(panel_handler.dataset_name.replace(' ', '_'))
-    print(name)
-    col2 = Column(
-        panel_handler.fig,
-        name=name
-    )
+    panel_handler.fig.name  = 'figure_{}'.format(n)
+    panel_handler.fig.sizing_mode = 'scale_both'
+    print(panel_handler.fig.name)
 
-    curdoc().add_root(col1)
-    curdoc().add_root(col2)
+    curdoc().add_root(col)
+    curdoc().add_root(panel_handler.fig)
 
 
 
