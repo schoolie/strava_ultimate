@@ -71,7 +71,7 @@ class StatPanel(object):
         player_names = list(games_played.index)
 
         combo_select = Select(title="Stat Type:", value='Win Percentage', options=list(data_combos.keys()))
-        min_games_slider = Slider(title="Min Games Played", start=0, end=max_games_played, value=min_games_played, step=10)
+        min_games_slider = Slider(title="Min Games Played", start=min_games_played, end=max_games_played, value=min_games_played, step=5)
 
         # controls = [min_games_slider, combo_select]
         # for control in controls:
@@ -102,6 +102,9 @@ class StatPanel(object):
         self.min_games_slider.on_change('value', lambda attr, old, new: self.update())
         self.combo_select.on_change('value', lambda attr, old, new: self.update())
 
+        self.circle_renderers = {}
+        self.line_renderers = {}
+
 
     def update(self):
 
@@ -124,14 +127,16 @@ class StatPanel(object):
         data_df = data_df.reset_index()
 
         ## only keep last game from day
-        a = data_df.values
-        dates = np.unique(a[:, 0], return_counts=True)
-        last_game_levels = np.array([dates[0], dates[1] - 1]).T.tolist()
+        # a = data_df.values
+        # dates = np.unique(a[:, 0], return_counts=True)
+        # last_game_levels = np.array([dates[0], dates[1] - 1]).T.tolist()
+        #
+        # last_game_names = ['Date', 'Game_Number']
+        # last_game_index = pd.MultiIndex.from_tuples(last_game_levels, names=last_game_names)
+        #
+        # red_df = data_df.set_index(['Date', 'Game_Number']).reindex(last_game_index).reset_index()
 
-        last_game_names = ['Date', 'Game_Number']
-        last_game_index = pd.MultiIndex.from_tuples(last_game_levels, names=last_game_names)
-
-        red_df = data_df.set_index(['Date', 'Game_Number']).reindex(last_game_index).reset_index()
+        red_df = data_df.groupby('Date').last().reset_index()
         red_df['Date_String'] = red_df.Date
         red_df['Date'] = pd.to_datetime(red_df.Date)
 
@@ -161,6 +166,19 @@ class StatPanel(object):
             self.source.data = self.source.from_df(red_df)
             self.interp_source.data = self.interp_source.from_df(interp_df)
             self.table_source.data = self.table_source.from_df(table_df)
+
+
+        for name, count in self.games_played.iteritems():
+            try:
+                if name in self.shown_players:
+                    self.circle_renderers[name].visible = (count >= self.min_games_slider.value)
+                    self.line_renderers[name].visible = (count >= self.min_games_slider.value)
+                else:                    
+                    self.circle_renderers[name].visible = False
+                    self.line_renderers[name].visible = False
+                    
+            except KeyError:
+                print(name)
 
     def build_plot(self):
 
@@ -205,7 +223,7 @@ class StatPanel(object):
                 line_dash = 'solid'
 
             if name in self.shown_players:
-                if self.games_played[name] > self.min_games_slider.value:
+                if self.games_played[name] >= self.min_games_slider.value:
                     visible = True
                 else:
                     visible = False
@@ -238,6 +256,9 @@ class StatPanel(object):
 
             circle.hover_glyph.size=20
             line.hover_glyph.line_width=hover_line_width
+
+            self.circle_renderers[name] = circle
+            self.line_renderers[name] = line
 
             hover_tool = HoverTool(
                 tooltips = [
