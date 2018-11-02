@@ -167,10 +167,10 @@ class StatPanel(object):
                 if name in self.shown_players:
                     self.circle_renderers[name].visible = (count >= self.min_games_slider.value)
                     self.line_renderers[name].visible = (count >= self.min_games_slider.value)
-                else:                    
+                else:
                     self.circle_renderers[name].visible = False
                     self.line_renderers[name].visible = False
-                    
+
             except KeyError:
                 print(name)
 
@@ -253,7 +253,7 @@ class StatPanel(object):
                 tooltips = [
                     ("Player", name),
                     ("Date", "@Date_String"),
-                    ("Value", "@{}".format(name)),
+                    ("Value", "@{}{{ {} }}".format( name, data_combos[self.combo_select.value][1] ) ),
                 ],
                 # names=[name],
                 renderers=[circle],
