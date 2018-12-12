@@ -253,7 +253,7 @@ class StatPanel(object):
                 tooltips = [
                     ("Player", name),
                     ("Date", "@Date_String"),
-                    ("Value", "@{}{{ {} }}".format( name, data_combos[self.combo_select.value][1] ) ),
+                    ("Value", "@{}".format( name )),
                 ],
                 # names=[name],
                 renderers=[circle],
