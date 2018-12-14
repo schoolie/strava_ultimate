@@ -831,9 +831,9 @@ def summary_stats():
         (True, 'All Time', None, None),
         (False, 'Spring 2018', '2018-03-20', '2018-06-20'),
         (False, 'Summer 2018', '2018-06-21', '2018-09-22'),
-        (False, 'Fall 2018', '2018-09-22', '2018-12-21'),
-        (False, 'Winter 2019', '2018-12-21', '2019-03-20'),
-        (False, 'Spring 2019', '2019-03-20', '2019-06-21'),
+        (False, 'Fall 2018', '2018-09-23', '2018-12-21'),
+        (False, 'Winter 2019', '2018-12-22', '2019-03-20'),
+        (False, 'Spring 2019', '2019-03-21', '2019-06-21'),
     ]
 
     for write, name, start, end in seasons:
