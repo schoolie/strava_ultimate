@@ -4,3 +4,5 @@ bin/*
 *.json
 
 *.pyc
+*.csv
+*._csv
