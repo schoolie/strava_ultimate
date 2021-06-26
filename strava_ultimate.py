@@ -828,14 +828,14 @@ def summary_stats():
     handler = Handler(load_strava=False)
 
     seasons = [
-        (True, 'All Time', None, None),
+        # (True, 'All Time', None, None),
         # (False, 'Spring 2018', '2018-03-20', '2018-06-20'),
         # (False, 'Summer 2018', '2018-06-21', '2018-09-22'),
         # (False, 'Fall 2018', '2018-09-23', '2018-12-21'),
         # (False, 'Winter 2019', '2018-12-22', '2019-03-20'),
         # (False, 'Spring 2019', '2019-03-21', '2019-06-20'),
-        (False, 'Summer 2019', '2019-06-21', '2019-09-22'),
-        (False, 'Fall 2019', '2019-09-23', '2019-12-20'),
+        # (False, 'Summer 2019', '2019-06-21', '2019-09-22'),
+        # (False, 'Fall 2019', '2019-09-23', '2019-12-20'),
         (False, 'Winter 2020', '2019-12-21', '2020-03-18'),
         (False, 'Summer 2021', '2021-06-13', '2021-09-22'),
     ]
