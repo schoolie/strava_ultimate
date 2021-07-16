@@ -298,6 +298,23 @@ for name in os.listdir('plot_app/'):
     if '.csv' in name:
         csv_names.append(name)
 
+## Brute force sort 
+season_order = [
+    'Summer 2021',
+    'Winter 2020',
+]
+
+new_csv_names = []
+for season in season_order:
+    for csv_name in csv_names:
+        if season in csv_name:
+            new_csv_names.append(csv_name)
+
+for csv_name in csv_names:
+    if csv_name not in new_csv_names:
+        new_csv_names.append(csv_name)
+
+csv_names = new_csv_names
 
 ## Build Panels
 panel_handlers = []
