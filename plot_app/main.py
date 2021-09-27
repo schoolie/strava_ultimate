@@ -300,6 +300,7 @@ for name in os.listdir('plot_app/'):
 
 ## Brute force sort 
 season_order = [
+    'Fall 2021',
     'Summer 2021',
     'Winter 2020',
 ]

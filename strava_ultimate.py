@@ -837,7 +837,9 @@ def summary_stats():
         # (False, 'Summer 2019', '2019-06-21', '2019-09-22'),
         # (False, 'Fall 2019', '2019-09-23', '2019-12-20'),
         (False, 'Winter 2020', '2019-12-21', '2020-03-18'),
-        (False, 'Summer 2021', '2021-06-13', '2021-09-22'),
+        (False, 'Summer 2021', '2021-06-13', '2021-09-21'),
+        (False, 'Fall 2021', '2021-09-22', '2021-12-20'),
+        (False, 'Winter 2022', '2021-12-21', '2022-03-19'),
     ]
 
     for write, name, start, end in seasons:
@@ -851,7 +853,7 @@ def summary_stats():
         else:
             end_date = datetime.today() ## next check is always True for All Time stats
 
-        if end_date > datetime.today() - timedelta(days=2):
+        if end_date > datetime.today() - timedelta(days=8):
             print(name)
             games = handler.summary_stats(
                 write_to_google=write,
