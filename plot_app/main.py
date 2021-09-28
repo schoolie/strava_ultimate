@@ -57,7 +57,7 @@ class StatPanel(object):
         max_games_played = games_played.max()
 
         if min_games_played is None:
-            min_games_played = int(max_games_played / 3)
+            min_games_played = int(max_games_played / 4)
 
         games_played = games_played[games_played >= min_games_played]
         games_played = games_played.sort_values(ascending=False)
@@ -65,7 +65,7 @@ class StatPanel(object):
         player_names = list(games_played.index)
 
         combo_select = Select(title="Stat Type:", value='Win Percentage', options=list(data_combos.keys()))
-        min_games_slider = Slider(title="Min Games Played", start=min_games_played, end=max_games_played, value=max_games_played/2, step=5)
+        min_games_slider = Slider(title="Min Games Played", start=min_games_played, end=max_games_played, value=max_games_played*0.35, step=5)
 
         # controls = [min_games_slider, combo_select]
         # for control in controls:
