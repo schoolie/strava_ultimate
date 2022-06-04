@@ -57,7 +57,7 @@ class StatPanel(object):
         max_games_played = games_played.max()
 
         if min_games_played is None:
-            min_games_played = int(max_games_played / 4)
+            min_games_played = 4 #int(max_games_played / 4)
 
         games_played = games_played[games_played >= min_games_played]
         games_played = games_played.sort_values(ascending=False)
@@ -300,6 +300,8 @@ for name in os.listdir('plot_app/'):
 
 ## Brute force sort 
 season_order = [
+    'Spring 2022',
+    'Winter 2022',
     'Fall 2021',
     'Summer 2021',
     'Winter 2020',

@@ -840,6 +840,7 @@ def summary_stats():
         (False, 'Summer 2021', '2021-06-13', '2021-09-21'),
         (False, 'Fall 2021', '2021-09-22', '2021-12-20'),
         (False, 'Winter 2022', '2021-12-21', '2022-03-19'),
+        (False, 'Spring 2022', '2022-03-20', '2022-06-21'),
     ]
 
     for write, name, start, end in seasons:
